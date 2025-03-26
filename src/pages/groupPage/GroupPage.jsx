@@ -3,13 +3,17 @@ import { useNavigate } from "react-router-dom";
 import NavBar from "../../components/NavBar";
 import { groupService } from "../../services/groupService";
 import { routeService } from "../../services/routeService";
+import Footer from "../../components/Footer";
+import SearchBar from "../../components/SearchBar";
 
 const GroupPage = () => {
   const navigate = useNavigate();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isRouteModalOpen, setIsRouteModalOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [filteredGroups, setFilteredGroups] = useState([]);
   const [formData, setFormData] = useState({
-    title: "",
+    groupName: "",
     description: "",
     image: "",
   });
@@ -40,7 +44,7 @@ const GroupPage = () => {
       setLoading(true);
       const response = await groupService.getGroupsByPage(page, itemsPerPage);
       setGroups(response.data);
-      // Tính toán tổng số trang từ tổng số items
+      setFilteredGroups(response.data);
       const calculatedTotalPages = Math.ceil(response.total / itemsPerPage);
       setTotalPages(calculatedTotalPages);
     } catch (err) {
@@ -240,141 +244,143 @@ const GroupPage = () => {
     }
   };
 
+  // Handle search
+  const handleSearch = (e) => {
+    const value = e.target.value;
+    setSearchTerm(value);
+    
+    if (!value.trim()) {
+      setFilteredGroups(groups);
+      return;
+    }
+
+    const searchResults = groups.filter(group => {
+      const nameMatch = group.groupName.toLowerCase().includes(value.toLowerCase());
+      const descMatch = group.description?.toLowerCase().includes(value.toLowerCase());
+      return nameMatch || descMatch;
+    });
+
+    setFilteredGroups(searchResults);
+  };
+
   return (
-    <div className="relative">
+    <div className="min-h-screen bg-white">
+      <SearchBar />
       <NavBar />
 
-      <div className="max-w-4xl mx-auto px-4 py-8">
+      {/* Hero Section */}
+      <div className="relative h-[400px] mb-12">
+        <div className="absolute inset-0">
+          <img
+            src="https://web-assets.strava.com/assets/landing-pages/_next/static/media/ALP-stories-cycling-1@2x.6913c47e.webp"
+            alt="Cycling Community"
+            className="w-full h-full object-cover"
+          />
+          <div className="absolute inset-0 bg-black/60"></div>
+        </div>
+        <div className="absolute inset-0 flex flex-col items-center justify-center text-white">
+          <h1 className="text-4xl md:text-5xl font-bold mb-4 text-center">
+            Join Our Cycling Community
+          </h1>
+          <p className="text-xl md:text-2xl text-gray-200 max-w-2xl text-center px-4">
+            Connect with fellow cyclists, share routes, and explore together
+          </p>
+        </div>
+      </div>
+
+      <div className="max-w-6xl mx-auto px-4 py-8">
         {/* Search and Action Buttons */}
-        <div className="mb-8 flex flex-col sm:flex-row gap-4">
+        <div className="mb-12 flex flex-col sm:flex-row gap-4">
           <div className="relative flex-grow">
             <input
               type="text"
-              placeholder="Search groups..."
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              placeholder="Search by group name or description..."
+              value={searchTerm}
+              onChange={handleSearch}
+              className="w-full px-6 py-3 bg-white border border-gray-300 rounded-full shadow-sm focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent text-gray-700"
             />
-            <span className="absolute right-3 top-2.5 text-gray-400">
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                className="h-5 w-5"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-                />
+            <span className="absolute right-4 top-3.5 text-gray-400">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
               </svg>
             </span>
           </div>
           <div className="flex gap-3">
             <button
               onClick={() => setIsModalOpen(true)}
-              className="px-3 py-1.5 bg-black text-white rounded-lg hover:bg-gray-800 transition-colors duration-300 flex items-center text-sm whitespace-nowrap"
+              className="px-6 py-3 bg-black text-white rounded-full hover:bg-gray-800 transition-colors duration-300 flex items-center text-sm font-medium shadow-lg hover:shadow-xl"
             >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                className="h-4 w-4 mr-1.5"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M12 4v16m8-8H4"
-                />
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
               </svg>
-              Create New Group
+              Create Group
             </button>
             <button
               onClick={() => setIsRouteModalOpen(true)}
-              className="px-3 py-1.5 bg-black text-white rounded-lg hover:bg-gray-800 transition-colors duration-300 flex items-center text-sm whitespace-nowrap"
+              className="px-6 py-3 bg-black text-white rounded-full hover:bg-gray-800 transition-colors duration-300 flex items-center text-sm font-medium shadow-lg hover:shadow-xl"
             >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                className="h-4 w-4 mr-1.5"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"
-                />
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
               </svg>
-              Create New Route
+              Create Route
             </button>
           </div>
         </div>
 
-        {/* Header Section */}
-        <div className="mb-8">
-          <div className="relative h-48 rounded-lg overflow-hidden mb-4">
-            <img
-              src="https://web-assets.strava.com/assets/landing-pages/_next/static/media/ALP-stories-cycling-1@2x.6913c47e.webp"
-              alt="Cycling Community"
-              className="w-full h-full object-cover"
-            />
-            <div className="absolute inset-0 bg-black bg-opacity-40 flex items-center justify-center">
-              <h1 className="text-white text-3xl font-semibold">
-                Are you looking for community?
-              </h1>
-            </div>
-          </div>
-          <h2 className="text-2xl font-semibold text-center text-gray-800">
-            Bicycles: help bring us together
-          </h2>
-        </div>
-
         {/* Groups Grid */}
-        <div className="space-y-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {loading ? (
-            <div className="text-center py-4"></div>
+            <div className="col-span-2 flex justify-center py-12">
+              <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-black"></div>
+            </div>
           ) : error ? (
-            <div className="text-center text-red-600 py-4">{error}</div>
+            <div className="col-span-2 text-center text-red-600 py-12">{error}</div>
+          ) : filteredGroups.length === 0 ? (
+            <div className="col-span-2 text-center py-12">
+              <p className="text-gray-500 text-lg">No groups found matching your search.</p>
+            </div>
           ) : (
-            groups.map((group) => (
+            filteredGroups.map((group) => (
               <div
                 key={group.id}
-                className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition-shadow duration-300"
+                className="bg-white rounded-xl shadow-md overflow-hidden hover:shadow-xl transition-shadow duration-300 border border-gray-200"
               >
-                <div className="flex items-center p-4">
-                  <div className="w-32 h-24 flex-shrink-0">
-                    <img
-                      src={group.image}
-                      alt={group.title}
-                      className="w-full h-full object-cover rounded-lg"
-                    />
-                  </div>
-                  <div className="ml-4 flex-grow">
-                    <div className="flex items-center">
-                      <h3 className="text-lg font-medium text-gray-800">
-                        {group.title}
-                      </h3>
-                      {group.isPrivate && (
-                        <span className="ml-2 px-2 py-1 bg-gray-100 text-xs rounded-full">
-                          Private
-                        </span>
-                      )}
+                <div className="relative h-48">
+                  <img
+                    src={group.image || "https://source.unsplash.com/random/800x600/?cycling"}
+                    alt={group.groupName}
+                    className="w-full h-full object-cover"
+                  />
+                  {group.isPrivate && (
+                    <span className="absolute top-4 right-4 px-3 py-1 bg-black text-white text-xs rounded-full">
+                      Private
+                    </span>
+                  )}
+                </div>
+                <div className="p-6">
+                  <h3 className="text-xl font-semibold text-gray-800 mb-2">
+                    {group.groupName}
+                  </h3>
+                  <p className="text-gray-600 text-sm mb-4 line-clamp-2">
+                    {group.description || "Join our community of cyclists and explore new routes together!"}
+                  </p>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-2">
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                      </svg>
+                      <span className="text-sm text-gray-600">{group.memberCount} members</span>
                     </div>
-                    <div className="flex items-center mt-2">
-                      <span className="text-sm text-gray-600">
-                        {group.members} members
-                      </span>
-                      <button
-                        onClick={() => handleJoinGroup(group.id)}
-                        className="ml-auto bg-red-500 text-white px-4 py-1 rounded-full text-sm hover:bg-red-600 transition-colors duration-300"
-                      >
-                        {group.isPrivate ? "Request Access" : "Join"}
-                      </button>
-                    </div>
+                    <button
+                      onClick={() => handleJoinGroup(group.id)}
+                      className={`px-6 py-2 rounded-full text-sm font-medium transition-colors duration-300 ${
+                        group.isPrivate 
+                          ? 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                          : 'bg-black text-white hover:bg-gray-800'
+                      }`}
+                    >
+                      {group.isPrivate ? "Request Access" : "Join Group"}
+                    </button>
                   </div>
                 </div>
               </div>
@@ -382,8 +388,12 @@ const GroupPage = () => {
           )}
         </div>
 
-        {/* Pagination */}
-        {renderPagination()}
+        {/* Show pagination only when not searching */}
+        {!searchTerm && (
+          <div className="flex justify-center mt-8 space-x-2">
+            {renderPagination()}
+          </div>
+        )}
 
         {/* Modal Form */}
         {isModalOpen && (
@@ -414,12 +424,12 @@ const GroupPage = () => {
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Group Title
+                    Group Name
                   </label>
                   <input
                     type="text"
-                    name="title"
-                    value={formData.title}
+                    name="groupName"
+                    value={formData.groupName}
                     onChange={handleInputChange}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                     required
@@ -678,9 +688,8 @@ const GroupPage = () => {
           </div>
         )}
       </div>
-      
+      <Footer />
     </div>
-    
   );
 };
 

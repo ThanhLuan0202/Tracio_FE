@@ -5,44 +5,50 @@ import axios from "axios";
 import ProductCard from "./ProductCard";
 import Category from "./CategorySidebar";
 
-const ProductList = () => {
+const ProductList = ({ priceFilter }) => {
   const [products, setProducts] = useState([]);
-  const [filteredProducts, setFilteredProducts] = useState([]); // Lưu sản phẩm sau khi lọc
-  const [selectedFilter, setSelectedFilter] = useState(null); // Lưu category, size, hoặc brand được chọn
+  const [filteredProducts, setFilteredProducts] = useState([]);
   const navigate = useNavigate();
 
   useEffect(() => {
     axios
-      .get("https://67cec251125cd5af757bdeb7.mockapi.io/product") // Thay bằng API thực tế
+      .get("https://67cec251125cd5af757bdeb7.mockapi.io/product")
       .then((response) => {
-        setProducts(response.data); // Giả sử API trả về danh sách sản phẩm
-        // setFilteredProducts(response.data); // Mặc định hiển thị tất cả sản phẩm
+        const formattedProducts = response.data.map((product) => ({
+          ...product,
+          price: parseInt(product.price),
+        }));
+        setProducts(formattedProducts);
+        setFilteredProducts(formattedProducts);
       })
       .catch((error) => {
         console.error("Lỗi khi lấy sản phẩm:", error);
       });
   }, []);
-  // useEffect(() => {
-  //   if (selectedFilter) {
-  //     const filtered = products.filter(
-  //       (product) =>
-  //         product.category === selectedFilter ||
-  //         product.size === selectedFilter ||
-  //         product.brand === selectedFilter
-  //     );
-  //     setFilteredProducts(filtered);
-  //   } else {
-  //     setFilteredProducts(products); // Nếu không có bộ lọc, hiển thị tất cả sản phẩm
-  //   }
-  // }, [selectedFilter, products]);
+
+  useEffect(() => {
+    let sortedProducts = [...products];
+
+    if (priceFilter === "lowToHigh") {
+      sortedProducts.sort((a, b) => a.price - b.price);
+    } else if (priceFilter === "highToLow") {
+      sortedProducts.sort((a, b) => b.price - a.price);
+    }
+
+    setFilteredProducts(sortedProducts);
+  }, [priceFilter, products]);
 
   const handleProductClick = (productId) => {
+    const selectedProduct = products.find((p) => p.id === productId);
+    if (selectedProduct) {
+      localStorage.setItem("selectedProduct", JSON.stringify(selectedProduct));
+    }
     navigate(`/product/${productId}`);
   };
 
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-      {products.map((product) => (
+      {filteredProducts.map((product) => (
         <div
           key={product.id}
           onClick={() => handleProductClick(product.id)}

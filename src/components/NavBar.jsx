@@ -12,7 +12,7 @@ const NavBar = () => {
         <div className="flex justify-center items-center px-6 py-4">
           {/* Menu items - Ẩn khi màn hình nhỏ, hiện khi màn hình lớn */}
           <div className="hidden md:flex gap-8 mt-2">
-            {["HOME", "PRODUCT", "GROUP", "SERVICES"].map((item) => {
+            {["HOME","GROUP", "PRODUCT",  "SERVICES"].map((item) => {
               const path = item === "HOME" ? "/" : `/${item.toLowerCase()}`;
               const isActive = location.pathname === path; // Kiểm tra trang hiện tại
 

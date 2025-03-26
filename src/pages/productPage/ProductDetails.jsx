@@ -1,26 +1,27 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import NavBar from "../../components/NavBar";
 import Breadcumbs from "../../components/Breadcumbs";
+import axios from "axios";
+import SearchBar from "../../components/SearchBar";
 
 const ProductDetails = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const [selectedImage, setSelectedImage] = useState(0);
+  const [selectedColor, setSelectedColor] = useState(null);
+  const [selectedSize, setSelectedSize] = useState(null);
   const [quantity, setQuantity] = useState(1);
   const [showReviewForm, setShowReviewForm] = useState(false);
+  const [product, setProduct] = useState(null);
+  const [error, setError] = useState("");
   const [reviewForm, setReviewForm] = useState({
     rating: 5,
     comment: "",
   });
 
-  // Mock data - replace with actual API call
-  const product = {
-    id: id,
-    name: "NÓN BẢO HIỂM THỂ THAO FORNIX - NFL",
-    price: 1000000,
-    description:
-      "Thiết kế đơn giản nhưng vẫn đảm bảo tính thẩm mỹ và an toàn cho người sử dụng. Nón bảo hiểm thể thao Fornix NFL được thiết kế với kiểu dáng thời trang, phù hợp cho các hoạt động thể thao ngoài trời.",
+  // Static data
+  const staticData = {
     images: [
       "https://contents.mediadecathlon.com/p2838941/k$422d1b326b534a55dd84533d4c378512/m%C5%A9-b%E1%BA%A3o-hi%E1%BB%83m-xe-%C4%91%E1%BA%A1p-%C4%91%E1%BB%8Ba-h%C3%ACnh-st-500-%C4%91en-rockrider-8529388.jpg?f=768x0&format=auto",
       "https://contents.mediadecathlon.com/p2838941/k$422d1b326b534a55dd84533d4c378512/m%C5%A9-b%E1%BA%A3o-hi%E1%BB%83m-xe-%C4%91%E1%BA%A1p-%C4%91%E1%BB%8Ba-h%C3%ACnh-st-500-%C4%91en-rockrider-8529388.jpg?f=768x0&format=auto",
@@ -31,6 +32,8 @@ const ProductDetails = () => {
     stock: 50,
     rating: 4.5,
     reviews: 128,
+    description:
+      "Thiết kế đơn giản nhưng vẫn đảm bảo tính thẩm mỹ và an toàn cho người sử dụng. Nón bảo hiểm thể thao Fornix NFL được thiết kế với kiểu dáng thời trang, phù hợp cho các hoạt động thể thao ngoài trời.",
     specifications: [
       {
         name: "Material",
@@ -45,7 +48,6 @@ const ProductDetails = () => {
         value: "Certified to EN 1078 standard",
       },
     ],
-    // Mock review data
     reviewList: [
       {
         id: 1,
@@ -71,6 +73,45 @@ const ProductDetails = () => {
     ],
   };
 
+  useEffect(() => {
+    // Thử lấy thông tin sản phẩm từ localStorage trước
+    const savedProduct = localStorage.getItem("selectedProduct");
+    if (savedProduct) {
+      const parsedProduct = JSON.parse(savedProduct);
+      setProduct({
+        ...staticData,
+        id: parsedProduct.id,
+        name: parsedProduct.name,
+        price: parsedProduct.price,
+        image: parsedProduct.image,
+      });
+    }
+
+    // Sau đó gọi API để lấy thông tin mới nhất
+    axios
+      .get(`https://67cec251125cd5af757bdeb7.mockapi.io/product/${id}`)
+      .then((response) => {
+        setProduct({
+          ...staticData,
+          id: response.data.id,
+          name: response.data.name,
+          price: response.data.price,
+          image: response.data.image,
+        });
+      })
+      .catch((error) => {
+        console.error("Lỗi khi lấy thông tin sản phẩm:", error);
+      });
+  }, [id]);
+
+  if (!product) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        Loading...
+      </div>
+    );
+  }
+
   const handleQuantityChange = (value) => {
     const newQuantity = quantity + value;
     if (newQuantity >= 1 && newQuantity <= product.stock) {
@@ -80,43 +121,59 @@ const ProductDetails = () => {
 
   const handleReviewSubmit = (e) => {
     e.preventDefault();
-    // Xử lý gửi review
     console.log("Review submitted:", reviewForm);
     setShowReviewForm(false);
     setReviewForm({ rating: 5, comment: "" });
   };
 
+  const handleColorSelect = (color) => {
+    setSelectedColor(color);
+    setError(""); // Clear error when selection is made
+  };
+
+  const handleSizeSelect = (size) => {
+    setSelectedSize(size);
+    setError(""); // Clear error when selection is made
+  };
+
   const handleAddToCart = () => {
-    // Create cart item from current product and selections
+    // Validate selections
+    if (!selectedColor) {
+      setError("Please select a color");
+      return;
+    }
+    if (!selectedSize) {
+      setError("Please select a size");
+      return;
+    }
+
     const cartItem = {
       id: product.id,
       name: product.name,
       price: product.price,
       quantity: quantity,
-      image: product.images[0],
-      // Add selected color and size when implemented
+      image: product.images?.[selectedImage] || product.image,
+      color: selectedColor,
+      size: selectedSize,
     };
 
-    // Get existing cart items from localStorage
     const existingCart = JSON.parse(localStorage.getItem("cart") || "[]");
 
-    // Check if item already exists in cart
+    // Check if item with same id, color, and size exists
     const existingItemIndex = existingCart.findIndex(
-      (item) => item.id === cartItem.id
+      (item) =>
+        item.id === cartItem.id &&
+        item.color === cartItem.color &&
+        item.size === cartItem.size
     );
 
     if (existingItemIndex !== -1) {
-      // Update quantity if item exists
       existingCart[existingItemIndex].quantity += quantity;
     } else {
-      // Add new item if it doesn't exist
       existingCart.push(cartItem);
     }
 
-    // Save updated cart back to localStorage
     localStorage.setItem("cart", JSON.stringify(existingCart));
-
-    // Navigate to cart page
     navigate("/cart");
   };
 
@@ -137,6 +194,8 @@ const ProductDetails = () => {
 
   return (
     <div className="min-h-screen bg-white">
+      <SearchBar />
+
       <Breadcumbs />
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Product Section */}
@@ -145,30 +204,32 @@ const ProductDetails = () => {
           <div className="lg:w-2/3">
             <div className="aspect-w-3 aspect-h-2 rounded-lg overflow-hidden">
               <img
-                src={product.images[selectedImage]}
+                src={product.images?.[selectedImage] || product.image}
                 alt={product.name}
                 className="w-full h-full object-center object-cover"
               />
             </div>
-            <div className="mt-4 grid grid-cols-4 gap-4">
-              {product.images.map((image, index) => (
-                <button
-                  key={index}
-                  onClick={() => setSelectedImage(index)}
-                  className={`aspect-w-1 aspect-h-1 rounded-lg overflow-hidden ${
-                    selectedImage === index
-                      ? "ring-2 ring-red-500"
-                      : "ring-1 ring-gray-200"
-                  }`}
-                >
-                  <img
-                    src={image}
-                    alt={`Product ${index + 1}`}
-                    className="w-full h-full object-center object-cover"
-                  />
-                </button>
-              ))}
-            </div>
+            {product.images && (
+              <div className="mt-4 grid grid-cols-4 gap-4">
+                {product.images.map((image, index) => (
+                  <button
+                    key={index}
+                    onClick={() => setSelectedImage(index)}
+                    className={`aspect-w-1 aspect-h-1 rounded-lg overflow-hidden ${
+                      selectedImage === index
+                        ? "ring-2 ring-red-500"
+                        : "ring-1 ring-gray-200"
+                    }`}
+                  >
+                    <img
+                      src={image}
+                      alt={`Product ${index + 1}`}
+                      className="w-full h-full object-center object-cover"
+                    />
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Product Info */}
@@ -191,34 +252,48 @@ const ProductDetails = () => {
             </div>
 
             {/* Color Selection */}
-            <div className="mt-6">
-              <h3 className="text-sm font-medium text-gray-900">Color</h3>
-              <div className="mt-2 flex space-x-2">
-                {product.color.map((color) => (
-                  <button
-                    key={color}
-                    className="px-4 py-2 border rounded-md hover:border-red-500 focus:outline-none focus:ring-2 focus:ring-red-500"
-                  >
-                    {color}
-                  </button>
-                ))}
+            {product.color && (
+              <div className="mt-6">
+                <h3 className="text-sm font-medium text-gray-900">Color</h3>
+                <div className="mt-2 flex space-x-2">
+                  {product.color.map((color) => (
+                    <button
+                      key={color}
+                      onClick={() => handleColorSelect(color)}
+                      className={`px-4 py-2 border rounded-md transition-all ${
+                        selectedColor === color
+                          ? "border-red-500 bg-red-50 text-red-600"
+                          : "hover:border-red-500 focus:outline-none focus:ring-2 focus:ring-red-500"
+                      }`}
+                    >
+                      {color}
+                    </button>
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
 
             {/* Size Selection */}
-            <div className="mt-6">
-              <h3 className="text-sm font-medium text-gray-900">Size</h3>
-              <div className="mt-2 flex space-x-2">
-                {product.size.map((size) => (
-                  <button
-                    key={size}
-                    className="px-4 py-2 border rounded-md hover:border-red-500 focus:outline-none focus:ring-2 focus:ring-red-500"
-                  >
-                    {size}
-                  </button>
-                ))}
+            {product.size && (
+              <div className="mt-6">
+                <h3 className="text-sm font-medium text-gray-900">Size</h3>
+                <div className="mt-2 flex space-x-2">
+                  {product.size.map((size) => (
+                    <button
+                      key={size}
+                      onClick={() => handleSizeSelect(size)}
+                      className={`px-4 py-2 border rounded-md transition-all ${
+                        selectedSize === size
+                          ? "border-red-500 bg-red-50 text-red-600"
+                          : "hover:border-red-500 focus:outline-none focus:ring-2 focus:ring-red-500"
+                      }`}
+                    >
+                      {size}
+                    </button>
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
 
             {/* Quantity */}
             <div className="mt-6">
@@ -243,6 +318,9 @@ const ProductDetails = () => {
               </div>
             </div>
 
+            {/* Error Message */}
+            {error && <div className="mt-4 text-red-600 text-sm">{error}</div>}
+
             {/* Add to Cart Button */}
             <button
               onClick={handleAddToCart}
@@ -258,28 +336,29 @@ const ProductDetails = () => {
             </div>
 
             {/* Specifications */}
-            <div className="mt-8">
-              <h3 className="text-lg font-medium text-gray-900">
-                Specifications
-              </h3>
-              <div className="mt-4 border-t border-gray-200">
-                {product.specifications.map((spec, index) => (
-                  <div
-                    key={index}
-                    className="py-3 flex justify-between border-b border-gray-200"
-                  >
-                    <span className="text-gray-500">{spec.name}</span>
-                    <span className="text-gray-900">{spec.value}</span>
-                  </div>
-                ))}
+            {product.specifications && (
+              <div className="mt-8">
+                <h3 className="text-lg font-medium text-gray-900">
+                  Specifications
+                </h3>
+                <div className="mt-4 border-t border-gray-200">
+                  {product.specifications.map((spec, index) => (
+                    <div
+                      key={index}
+                      className="py-3 flex justify-between border-b border-gray-200"
+                    >
+                      <span className="text-gray-500">{spec.name}</span>
+                      <span className="text-gray-900">{spec.value}</span>
+                    </div>
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
           </div>
         </div>
 
-        {/* Reviews Section - Now full width below product */}
+        {/* Reviews Section */}
         <div className="border-t border-gray-200 pt-10">
-          {/* Review Header with Rating */}
           <div className="max-w-3xl mx-auto">
             <div className="flex items-center justify-between mb-8">
               <h3 className="text-2xl font-bold">Reviews</h3>
@@ -305,48 +384,50 @@ const ProductDetails = () => {
             </div>
 
             {/* Review List */}
-            <div className="space-y-6">
-              {product.reviewList.map((review) => (
-                <div
-                  key={review.id}
-                  className="mb-8 pb-8 border-b border-gray-100 last:border-0"
-                >
-                  <div className="flex items-start mb-4">
-                    <img
-                      src={review.avatar}
-                      alt={review.user}
-                      className="w-12 h-12 rounded-full"
-                    />
-                    <div className="ml-4 flex-1">
-                      <div className="flex items-center justify-between mb-1">
-                        <h4 className="font-medium text-lg">{review.user}</h4>
-                        <span className="text-gray-500 text-sm">
-                          {review.date}
-                        </span>
-                      </div>
-                      <div className="flex items-center mb-3">
-                        {renderStars(review.rating)}
-                      </div>
-                      <p className="text-gray-700 leading-relaxed">
-                        {review.comment}
-                      </p>
-                      {review.images && (
-                        <div className="mt-4 flex gap-4">
-                          {review.images.map((image, index) => (
-                            <img
-                              key={index}
-                              src={image}
-                              alt={`Review ${index + 1}`}
-                              className="w-20 h-20 object-cover rounded-lg"
-                            />
-                          ))}
+            {product.reviewList && (
+              <div className="space-y-6">
+                {product.reviewList.map((review) => (
+                  <div
+                    key={review.id}
+                    className="mb-8 pb-8 border-b border-gray-100 last:border-0"
+                  >
+                    <div className="flex items-start mb-4">
+                      <img
+                        src={review.avatar}
+                        alt={review.user}
+                        className="w-12 h-12 rounded-full"
+                      />
+                      <div className="ml-4 flex-1">
+                        <div className="flex items-center justify-between mb-1">
+                          <h4 className="font-medium text-lg">{review.user}</h4>
+                          <span className="text-gray-500 text-sm">
+                            {review.date}
+                          </span>
                         </div>
-                      )}
+                        <div className="flex items-center mb-3">
+                          {renderStars(review.rating)}
+                        </div>
+                        <p className="text-gray-700 leading-relaxed">
+                          {review.comment}
+                        </p>
+                        {review.images && (
+                          <div className="mt-4 flex gap-4">
+                            {review.images.map((image, index) => (
+                              <img
+                                key={index}
+                                src={image}
+                                alt={`Review ${index + 1}`}
+                                className="w-20 h-20 object-cover rounded-lg"
+                              />
+                            ))}
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
 
             {/* Show More Reviews Button */}
             <div className="text-center mt-8">

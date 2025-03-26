@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { Autocomplete } from '@react-google-maps/api';
 import RouteMap from './RouteMap';
 
 const RouteForm = ({ initialData, onSubmit, onCancel }) => {
@@ -14,12 +15,47 @@ const RouteForm = ({ initialData, onSubmit, onCancel }) => {
     endCoords: null,
   });
 
+  const [startAutocomplete, setStartAutocomplete] = useState(null);
+  const [endAutocomplete, setEndAutocomplete] = useState(null);
+
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
     setFormData({
       ...formData,
       [name]: type === 'checkbox' ? checked : value,
     });
+  };
+
+  const onStartPlaceChanged = () => {
+    if (startAutocomplete) {
+      const place = startAutocomplete.getPlace();
+      if (place.formatted_address) {
+        setFormData(prev => ({
+          ...prev,
+          startLocation: place.formatted_address,
+          startCoords: {
+            lat: place.geometry.location.lat(),
+            lng: place.geometry.location.lng()
+          }
+        }));
+      }
+    }
+  };
+
+  const onEndPlaceChanged = () => {
+    if (endAutocomplete) {
+      const place = endAutocomplete.getPlace();
+      if (place.formatted_address) {
+        setFormData(prev => ({
+          ...prev,
+          endLocation: place.formatted_address,
+          endCoords: {
+            lat: place.geometry.location.lat(),
+            lng: place.geometry.location.lng()
+          }
+        }));
+      }
+    }
   };
 
   const handleRouteCalculated = (routeInfo) => {
@@ -50,28 +86,40 @@ const RouteForm = ({ initialData, onSubmit, onCancel }) => {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="form-group">
           <label className="block text-white mb-1">Điểm xuất phát</label>
-          <input
-            type="text"
-            name="startLocation"
-            value={formData.startLocation}
-            onChange={handleChange}
-            placeholder="Nhập địa điểm xuất phát"
-            className="w-full p-2 bg-white border border-zinc-700 rounded text-black"
-            required
-          />
+          <Autocomplete
+            onLoad={setStartAutocomplete}
+            onPlaceChanged={onStartPlaceChanged}
+            restrictions={{ country: 'vn' }}
+          >
+            <input
+              type="text"
+              name="startLocation"
+              value={formData.startLocation}
+              onChange={handleChange}
+              placeholder="Nhập địa điểm xuất phát"
+              className="w-full p-2 bg-white border border-zinc-700 rounded text-black"
+              required
+            />
+          </Autocomplete>
         </div>
 
         <div className="form-group">
           <label className="block text-white mb-1">Điểm đến</label>
-          <input
-            type="text"
-            name="endLocation"
-            value={formData.endLocation}
-            onChange={handleChange}
-            placeholder="Nhập địa điểm đến"
-            className="w-full p-2 bg-white border border-zinc-700 rounded text-black"
-            required
-          />
+          <Autocomplete
+            onLoad={setEndAutocomplete}
+            onPlaceChanged={onEndPlaceChanged}
+            restrictions={{ country: 'vn' }}
+          >
+            <input
+              type="text"
+              name="endLocation"
+              value={formData.endLocation}
+              onChange={handleChange}
+              placeholder="Nhập địa điểm đến"
+              className="w-full p-2 bg-white border border-zinc-700 rounded text-black"
+              required
+            />
+          </Autocomplete>
         </div>
       </div>
 
@@ -92,8 +140,10 @@ const RouteForm = ({ initialData, onSubmit, onCancel }) => {
             type="text"
             name="distance"
             value={formData.distance}
-            readOnly
-            className="w-full p-2 bg-gray-100 border border-zinc-700 rounded text-black"
+            onChange={handleChange}
+            placeholder="Ví dụ: 10 km"
+            className="w-full p-2 bg-white border border-zinc-700 rounded text-black"
+            required
           />
         </div>
 
@@ -103,8 +153,10 @@ const RouteForm = ({ initialData, onSubmit, onCancel }) => {
             type="text"
             name="estimatedTime"
             value={formData.estimatedTime}
-            readOnly
-            className="w-full p-2 bg-gray-100 border border-zinc-700 rounded text-black"
+            onChange={handleChange}
+            placeholder="Ví dụ: 2 giờ"
+            className="w-full p-2 bg-white border border-zinc-700 rounded text-black"
+            required
           />
         </div>
       </div>

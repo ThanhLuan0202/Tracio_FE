@@ -1,99 +1,118 @@
-import React, { useState, useCallback } from 'react';
-import { GoogleMap, LoadScript, Marker, DirectionsService, DirectionsRenderer } from '@react-google-maps/api';
+import React, { useState, useCallback, useEffect } from 'react';
+import { GoogleMap, DirectionsRenderer } from '@react-google-maps/api';
 
-const containerStyle = {
+const mapContainerStyle = {
   width: '100%',
   height: '400px'
 };
 
 const center = {
-  lat: 10.762622,  // Default center (Ho Chi Minh City)
-  lng: 106.660172
+  lat: 10.8231,  // Ho Chi Minh City coordinates
+  lng: 106.6297
+};
+
+const defaultOptions = {
+  zoomControl: true,
+  mapTypeControl: false,
+  scaleControl: true,
+  streetViewControl: false,
+  rotateControl: false,
+  fullscreenControl: true,
 };
 
 const RouteMap = ({ startLocation, endLocation, onRouteCalculated }) => {
   const [map, setMap] = useState(null);
   const [directionsResponse, setDirectionsResponse] = useState(null);
+  const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  // Callback when map loads
   const onLoad = useCallback((map) => {
     setMap(map);
   }, []);
 
-  // Callback when map unmounts
-  const onUnmount = useCallback((map) => {
+  const onUnmount = useCallback(() => {
     setMap(null);
+    setDirectionsResponse(null);
   }, []);
 
-  // Calculate route when start and end locations change
-  const calculateRoute = useCallback(() => {
-    if (!startLocation || !endLocation) return;
+  useEffect(() => {
+    if (!map || !startLocation || !endLocation) return;
 
-    const directionsService = new window.google.maps.DirectionsService();
+    const calculateRoute = async () => {
+      setIsLoading(true);
+      setError(null);
 
-    directionsService.route(
-      {
-        origin: startLocation,
-        destination: endLocation,
-        travelMode: window.google.maps.TravelMode.DRIVING,
-      },
-      (result, status) => {
-        if (status === 'OK') {
-          setDirectionsResponse(result);
-          // Calculate distance and duration
-          const route = result.routes[0];
-          const distance = route.legs[0].distance.text;
-          const duration = route.legs[0].duration.text;
-          
-          // Pass route information back to parent component
-          onRouteCalculated({
-            distance,
-            duration,
-            startCoords: {
-              lat: route.legs[0].start_location.lat(),
-              lng: route.legs[0].start_location.lng()
-            },
-            endCoords: {
-              lat: route.legs[0].end_location.lat(),
-              lng: route.legs[0].end_location.lng()
-            }
-          });
-          setError(null);
-        } else {
-          setError('Không thể tìm thấy đường đi giữa hai điểm này');
-          setDirectionsResponse(null);
-        }
+      try {
+        const directionsService = new window.google.maps.DirectionsService();
+        const results = await directionsService.route({
+          origin: startLocation,
+          destination: endLocation,
+          travelMode: window.google.maps.TravelMode.DRIVING,
+        });
+
+        setDirectionsResponse(results);
+        
+        // Extract route information
+        const route = results.routes[0];
+        const leg = route.legs[0];
+        onRouteCalculated({
+          distance: leg.distance.text,
+          duration: leg.duration.text,
+          startCoords: {
+            lat: leg.start_location.lat(),
+            lng: leg.start_location.lng()
+          },
+          endCoords: {
+            lat: leg.end_location.lat(),
+            lng: leg.end_location.lng()
+          }
+        });
+      } catch (err) {
+        console.error('Error calculating route:', err);
+        setError('Could not calculate route. Please try again.');
+      } finally {
+        setIsLoading(false);
       }
-    );
-  }, [startLocation, endLocation, onRouteCalculated]);
+    };
 
-  // Effect to calculate route when locations change
-  React.useEffect(() => {
-    if (startLocation && endLocation) {
-      calculateRoute();
-    }
-  }, [startLocation, endLocation, calculateRoute]);
+    calculateRoute();
+  }, [map, startLocation, endLocation, onRouteCalculated]);
 
   return (
-    <div className="w-full">
-        
-      <LoadScript googleMapsApiKey="YOUR_GOOGLE_MAPS_API_KEY"> 
-        <GoogleMap
-          mapContainerStyle={containerStyle}
-          center={center}
-          zoom={12}
-          onLoad={onLoad}
-          onUnmount={onUnmount}
-        >
-          {directionsResponse && (
-            <DirectionsRenderer directions={directionsResponse} />
-          )}
-        </GoogleMap>
-      </LoadScript>
+    <div className="relative">
+      <GoogleMap
+        mapContainerStyle={mapContainerStyle}
+        center={center}
+        zoom={12}
+        onLoad={onLoad}
+        onUnmount={onUnmount}
+        options={defaultOptions}
+      >
+        {directionsResponse && (
+          <DirectionsRenderer
+            directions={directionsResponse}
+            options={{
+              suppressMarkers: false,
+              polylineOptions: {
+                strokeColor: '#2563eb', // Blue color
+                strokeWeight: 5,
+              },
+            }}
+          />
+        )}
+      </GoogleMap>
+
+      {isLoading && (
+        <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-white"></div>
+        </div>
+      )}
+
       {error && (
-        <div className="mt-2 text-red-500 text-sm">
-          {error}
+        <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center">
+          <div className="bg-white p-4 rounded-lg text-red-600">
+            {error}
+          </div>
         </div>
       )}
     </div>
