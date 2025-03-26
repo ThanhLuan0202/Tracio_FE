@@ -2,7 +2,7 @@ import React from "react";
 import styled from "styled-components";
 import logo from "../assets/logo.jpg";
 import { IoMdNotifications } from "react-icons/io";
-import { FaSearch, FaShoppingCart } from "react-icons/fa";
+import { FaSearch, FaShoppingCart, FaUserCircle, FaCog } from "react-icons/fa";
 import { useNavigate } from "react-router-dom";
 
 function SearchBar() {
@@ -11,6 +11,11 @@ function SearchBar() {
   const handleCartClick = () => {
     navigate("/cart");
   };
+
+  const handleManageClick = () => {
+    navigate("/route");
+  };
+
   return (
     <Container>
       <Logo src={logo} alt="Logo" />
@@ -26,6 +31,11 @@ function SearchBar() {
           style={{ cursor: "pointer" }}
         />
         <IoMdNotifications style={{ cursor: "pointer" }} />
+        <FaUserCircle style={{ cursor: "pointer" }} />
+        <FaCog 
+          onClick={handleManageClick}
+          style={{ cursor: "pointer" }} 
+        />
       </IconContainer>
     </Container>
   );
