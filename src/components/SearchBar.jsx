@@ -3,8 +3,14 @@ import styled from "styled-components";
 import logo from "../assets/logo.jpg";
 import { IoMdNotifications } from "react-icons/io";
 import { FaSearch, FaShoppingCart } from "react-icons/fa";
+import { useNavigate } from "react-router-dom";
 
 function SearchBar() {
+  const navigate = useNavigate();
+
+  const handleCartClick = () => {
+    navigate("/cart");
+  };
   return (
     <Container>
       <Logo src={logo} alt="Logo" />
@@ -15,8 +21,11 @@ function SearchBar() {
         </SearchButton>
       </SearchContainer>
       <IconContainer>
-        <FaShoppingCart />
-        <IoMdNotifications />
+        <FaShoppingCart
+          onClick={handleCartClick}
+          style={{ cursor: "pointer" }}
+        />
+        <IoMdNotifications style={{ cursor: "pointer" }} />
       </IconContainer>
     </Container>
   );
