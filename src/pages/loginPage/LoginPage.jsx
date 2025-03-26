@@ -6,7 +6,7 @@ import { useNavigate, Link } from "react-router-dom";
 const LoginPage = () => {
   const navigate = useNavigate();
   const [formData, setFormData] = useState({
-    username: "",
+    email: "",
     password: "",
   });
   const [errors, setErrors] = useState({});
@@ -15,8 +15,8 @@ const LoginPage = () => {
 
   const validateForm = () => {
     const newErrors = {};
-    if (!formData.username) {
-      newErrors.username = "Username is required";
+    if (!formData.email) {
+      newErrors.email = "Email is required";
     }
     if (!formData.password) {
       newErrors.password = "Password is required";
@@ -31,7 +31,6 @@ const LoginPage = () => {
       ...prev,
       [id]: value,
     }));
-    // Clear error when user starts typing
     if (errors[id]) {
       setErrors((prev) => ({
         ...prev,
@@ -52,14 +51,14 @@ const LoginPage = () => {
     setErrorMessage("");
 
     try {
-      const response = await axios.post("https://67dda021e00db03c406c656d.mockapi.io/account", formData);
+      const response = await axios.post("https://localhost:7106/api/Authen/Login", {
+        email: formData.email,
+        password: formData.password
+      });
       if (response.data) {
-        // Store token in localStorage
         localStorage.setItem("token", response.data.token);
-        // Store user data if needed
         localStorage.setItem("user", JSON.stringify(response.data.user));
-        
-        // Redirect to home page
+        console.log(response.data); // Fix lỗi console.log(data)
         navigate("/");
       }
     } catch (error) {
@@ -75,16 +74,16 @@ const LoginPage = () => {
       <form onSubmit={handleSubmit}>
         <h3>Login Here</h3>
 
-        <label htmlFor="username">Username</label>
+        <label htmlFor="email">Email</label>
         <input
           type="text"
           placeholder="Email or Phone"
-          id="username"
-          value={formData.username}
+          id="email"
+          value={formData.email}
           onChange={handleChange}
-          className={errors.username ? "error" : ""}
+          className={errors.email ? "error" : ""}
         />
-        {errors.username && <span className="error-message">{errors.username}</span>}
+        {errors.email && <span className="error-message">{errors.email}</span>}
 
         <label htmlFor="password">Password</label>
         <input
@@ -104,9 +103,6 @@ const LoginPage = () => {
         <button type="submit" disabled={isLoading}>
           {isLoading ? "Logging in..." : "Log In"}
         </button>
-        
-
-        
       </form>
     </div>
   );

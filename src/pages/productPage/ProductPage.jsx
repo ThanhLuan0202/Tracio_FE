@@ -3,6 +3,7 @@ import SearchBar from "../../components/SearchBar";
 import NavBar from "../../components/NavBar";
 import CategorySidebar from "../../components/CategorySidebar";
 import ProductList from "../../components/ProductList";
+import Footer from "../../components/Footer";
 
 const ProductPage = () => {
   return (
@@ -58,6 +59,7 @@ const ProductPage = () => {
           </div>
         </div>
       </div>
+      <Footer />
     </div>
   );
 };

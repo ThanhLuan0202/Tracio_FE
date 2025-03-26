@@ -4,6 +4,7 @@ import SearchBar from "../../components/SearchBar";
 import ProductList from "../../components/ProductList";
 import BlogSection from "../../components/BlogSection";
 import NavBar from "../../components/NavBar";
+import Footer from "../../components/Footer";
 
 const HomePage = () => {
   return (
@@ -41,6 +42,7 @@ const HomePage = () => {
         </div>
         <BlogSection />
       </div>
+      <Footer />
     </div>
   );
 };

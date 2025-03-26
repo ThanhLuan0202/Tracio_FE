@@ -1,7 +1,8 @@
 import React from "react";
 import styled from "styled-components";
 import logo from "../assets/logo.jpg";
-import { IoMdNotifications } from "react-icons/io";
+import { FaMapLocationDot } from "react-icons/fa6";
+
 import { FaSearch, FaShoppingCart, FaUserCircle, FaCog } from "react-icons/fa";
 import { useNavigate } from "react-router-dom";
 
@@ -25,17 +26,19 @@ function SearchBar() {
           <FaSearch />
         </SearchButton>
       </SearchContainer>
+      
       <IconContainer>
         <FaShoppingCart
           onClick={handleCartClick}
           style={{ cursor: "pointer" }}
         />
-        <IoMdNotifications style={{ cursor: "pointer" }} />
-        <FaUserCircle style={{ cursor: "pointer" }} />
-        <FaCog 
+        <FaMapLocationDot  
           onClick={handleManageClick}
           style={{ cursor: "pointer" }} 
         />
+        <FaUserCircle style={{ cursor: "pointer" }} />
+        
+        
       </IconContainer>
     </Container>
   );
@@ -49,7 +52,7 @@ const Container = styled.div`
   background-color: #f8f9fa;
   border-bottom: 2px solid #ddd;
   flex-wrap: wrap;
-
+  
   @media (max-width: 768px) {
     flex-direction: column;
     padding: 10px;
