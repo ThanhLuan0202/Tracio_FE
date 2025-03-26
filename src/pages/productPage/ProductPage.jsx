@@ -1,10 +1,16 @@
-import React from "react";
+import React, { useState } from "react";
 import SearchBar from "../../components/SearchBar";
 import NavBar from "../../components/NavBar";
 import CategorySidebar from "../../components/CategorySidebar";
 import ProductList from "../../components/ProductList";
 
 const ProductPage = () => {
+  const [priceFilter, setPriceFilter] = useState(null);
+
+  const handlePriceFilter = (filter) => {
+    setPriceFilter(filter);
+  };
+
   return (
     <div className="min-h-screen bg-gray-50">
       <SearchBar />
@@ -30,24 +36,45 @@ const ProductPage = () => {
       <div className="max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex flex-col md:flex-row gap-12">
           {/* Sidebar */}
-          <div className="w-full md:w-64 flex-shrink-0 mt-6 md:mt-20">
-            <CategorySidebar />
-          </div>
 
           {/* Product Section */}
           <div className="flex-1 mt-10">
             {/* Filter Buttons */}
             <div className="flex gap-4 mb-8">
-              <button className="bg-black text-white px-6 py-2 rounded-md hover:bg-gray-800 transition-colors">
+              <button
+                onClick={() => handlePriceFilter("lowToHigh")}
+                className={`px-6 py-2 rounded-md transition-colors ${
+                  priceFilter === "lowToHigh"
+                    ? "bg-black text-white"
+                    : "bg-white text-black border border-gray-300 hover:bg-gray-100"
+                }`}
+              >
                 Price Low - High
               </button>
-              <button className="bg-black text-white px-6 py-2 rounded-md hover:bg-gray-800 transition-colors">
+              <button
+                onClick={() => handlePriceFilter("highToLow")}
+                className={`px-6 py-2 rounded-md transition-colors ${
+                  priceFilter === "highToLow"
+                    ? "bg-black text-white"
+                    : "bg-white text-black border border-gray-300 hover:bg-gray-100"
+                }`}
+              >
                 Price High - Low
+              </button>
+              <button
+                onClick={() => handlePriceFilter(null)}
+                className={`px-6 py-2 rounded-md transition-colors ${
+                  priceFilter === null
+                    ? "bg-black text-white"
+                    : "bg-white text-black border border-gray-300 hover:bg-gray-100"
+                }`}
+              >
+                All Prices
               </button>
             </div>
 
             {/* Product List */}
-            <ProductList />
+            <ProductList priceFilter={priceFilter} />
 
             {/* See More Button */}
             <div className="flex justify-center my-8">

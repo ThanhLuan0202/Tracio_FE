@@ -1,8 +1,19 @@
-import React from "react";
+import React, { useState } from "react";
 import SearchBar from "../../components/SearchBar";
 import NavBar from "../../components/NavBar";
 
 const ServicesPage = () => {
+  const [selectedCategory, setSelectedCategory] = useState(null);
+  const [priceFilter, setPriceFilter] = useState(null);
+
+  const categories = [
+    { id: "repairs", name: "Repairs" },
+    { id: "maintenance", name: "Maintenance" },
+    { id: "training", name: "Training" },
+    { id: "group", name: "Group Activities" },
+    { id: "custom", name: "Custom Services" },
+  ];
+
   const services = [
     {
       id: 1,
@@ -10,6 +21,7 @@ const ServicesPage = () => {
       image: "https://images.unsplash.com/photo-1517649763962-0c623066013b",
       description: "Professional repair and maintenance services",
       price: "$50/hour",
+      category: "repairs",
     },
     {
       id: 2,
@@ -17,6 +29,7 @@ const ServicesPage = () => {
       image: "https://images.unsplash.com/photo-1485965120184-e220f721d03e",
       description: "Custom bike fitting for optimal comfort",
       price: "$80/session",
+      category: "maintenance",
     },
     {
       id: 3,
@@ -24,6 +37,7 @@ const ServicesPage = () => {
       image: "https://images.unsplash.com/photo-1541625602330-2277a4c46182",
       description: "Personal training for all skill levels",
       price: "$40/hour",
+      category: "training",
     },
     {
       id: 4,
@@ -31,8 +45,28 @@ const ServicesPage = () => {
       image: "https://images.unsplash.com/photo-1517649763962-0c623066013b",
       description: "Join our community riding sessions",
       price: "$30/session",
+      category: "group",
     },
   ];
+
+  const handleCategoryClick = (categoryId) => {
+    setSelectedCategory(selectedCategory === categoryId ? null : categoryId);
+  };
+
+  const handlePriceFilter = (filter) => {
+    setPriceFilter(filter);
+  };
+
+  const filteredServices = services
+    .filter(
+      (service) => !selectedCategory || service.category === selectedCategory
+    )
+    .sort((a, b) => {
+      if (!priceFilter) return 0;
+      const priceA = parseInt(a.price.replace(/[^0-9]/g, ""));
+      const priceB = parseInt(b.price.replace(/[^0-9]/g, ""));
+      return priceFilter === "lowToHigh" ? priceA - priceB : priceB - priceA;
+    });
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -63,17 +97,29 @@ const ServicesPage = () => {
             <div className="bg-white rounded-lg shadow p-6">
               <h2 className="text-xl font-semibold mb-4">Categories</h2>
               <ul className="space-y-2">
-                <li className="hover:text-blue-600 cursor-pointer">Repairs</li>
-                <li className="hover:text-blue-600 cursor-pointer">
-                  Maintenance
+                <li
+                  onClick={() => handleCategoryClick(null)}
+                  className={`cursor-pointer transition-colors ${
+                    selectedCategory === null
+                      ? "text-black font-medium"
+                      : "text-gray-600 hover:text-black"
+                  }`}
+                >
+                  All Categories
                 </li>
-                <li className="hover:text-blue-600 cursor-pointer">Training</li>
-                <li className="hover:text-blue-600 cursor-pointer">
-                  Group Activities
-                </li>
-                <li className="hover:text-blue-600 cursor-pointer">
-                  Custom Services
-                </li>
+                {categories.map((category) => (
+                  <li
+                    key={category.id}
+                    onClick={() => handleCategoryClick(category.id)}
+                    className={`cursor-pointer transition-colors ${
+                      selectedCategory === category.id
+                        ? "text-black font-medium"
+                        : "text-gray-600 hover:text-black"
+                    }`}
+                  >
+                    {category.name}
+                  </li>
+                ))}
               </ul>
             </div>
           </div>
@@ -82,17 +128,41 @@ const ServicesPage = () => {
           <div className="flex-1">
             {/* Filter Buttons */}
             <div className="flex flex-wrap gap-3 mb-6 mt-6 md:mt-20">
-              <button className="bg-black text-white px-4 py-2 rounded hover:bg-gray-800 transition-colors">
+              <button
+                onClick={() => handlePriceFilter("lowToHigh")}
+                className={`px-4 py-2 rounded transition-colors ${
+                  priceFilter === "lowToHigh"
+                    ? "bg-black text-white"
+                    : "bg-white text-black border border-gray-300 hover:bg-gray-100"
+                }`}
+              >
                 Price Low - High
               </button>
-              <button className="bg-black text-white px-4 py-2 rounded hover:bg-gray-800 transition-colors">
+              <button
+                onClick={() => handlePriceFilter("highToLow")}
+                className={`px-4 py-2 rounded transition-colors ${
+                  priceFilter === "highToLow"
+                    ? "bg-black text-white"
+                    : "bg-white text-black border border-gray-300 hover:bg-gray-100"
+                }`}
+              >
                 Price High - Low
+              </button>
+              <button
+                onClick={() => handlePriceFilter(null)}
+                className={`px-4 py-2 rounded transition-colors ${
+                  priceFilter === null
+                    ? "bg-black text-white"
+                    : "bg-white text-black border border-gray-300 hover:bg-gray-100"
+                }`}
+              >
+                All Prices
               </button>
             </div>
 
             {/* Services Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {services.map((service) => (
+              {filteredServices.map((service) => (
                 <div
                   key={service.id}
                   className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition-shadow duration-300"

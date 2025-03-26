@@ -3,13 +3,13 @@ import { useNavigate } from "react-router-dom";
 import NavBar from "../../components/NavBar";
 import { groupService } from "../../services/groupService";
 import { routeService } from "../../services/routeService";
-
+import Footer from "../../components/Footer";
 const GroupPage = () => {
   const navigate = useNavigate();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isRouteModalOpen, setIsRouteModalOpen] = useState(false);
   const [formData, setFormData] = useState({
-    title: "",
+    groupName: "",
     description: "",
     image: "",
   });
@@ -349,14 +349,14 @@ const GroupPage = () => {
                   <div className="w-32 h-24 flex-shrink-0">
                     <img
                       src={group.image}
-                      alt={group.title}
+                      alt={group.groupName}
                       className="w-full h-full object-cover rounded-lg"
                     />
                   </div>
                   <div className="ml-4 flex-grow">
                     <div className="flex items-center">
                       <h3 className="text-lg font-medium text-gray-800">
-                        {group.title}
+                        {group.groupName}
                       </h3>
                       {group.isPrivate && (
                         <span className="ml-2 px-2 py-1 bg-gray-100 text-xs rounded-full">
@@ -366,7 +366,7 @@ const GroupPage = () => {
                     </div>
                     <div className="flex items-center mt-2">
                       <span className="text-sm text-gray-600">
-                        {group.members} members
+                        {group.memberCount} members
                       </span>
                       <button
                         onClick={() => handleJoinGroup(group.id)}
@@ -414,12 +414,12 @@ const GroupPage = () => {
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Group Title
+                    Group Name
                   </label>
                   <input
                     type="text"
-                    name="title"
-                    value={formData.title}
+                    name="groupName"
+                    value={formData.groupName}
                     onChange={handleInputChange}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                     required
@@ -678,6 +678,7 @@ const GroupPage = () => {
           </div>
         )}
       </div>
+      <Footer />
     </div>
   );
 };
