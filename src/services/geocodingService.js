@@ -1,17 +1,21 @@
 const CACHE_KEY = 'geocoding_cache';
 const CACHE_EXPIRY = 7 * 24 * 60 * 60 * 1000; // 7 days in milliseconds
-const REQUEST_TIMEOUT = 20000; // 20 seconds
+const REQUEST_TIMEOUT = 10000; // Reduced to 10 seconds
+
+// Update proxy list with more reliable options
 const PROXY_URLS = [
-  'https://corsproxy.org/?',
-  'https://cors.sh/?',
-  'https://proxy.cors.sh/',
-  'https://api.allorigins.win/raw?url='
+  'https://corsproxy.io/?',
+  'https://api.allorigins.win/raw?url=',
+  'https://api.codetabs.com/v1/proxy?quest='
 ];
 
 const OSRM_SERVERS = [
-  'https://routing.openstreetmap.de',
-  'https://router.project-osrm.org'
+  'https://router.project-osrm.org',
+  'https://routing.openstreetmap.de'
 ];
+
+// Add route cache
+const ROUTE_CACHE_SIZE = 50; // Maximum number of routes to cache
 
 class GeocodingError extends Error {
   constructor(message, type, originalError = null) {
@@ -25,10 +29,10 @@ class GeocodingError extends Error {
 class GeocodingService {
   constructor() {
     this.loadCache();
-    this.pendingRequests = new Map();
     this.currentProxyIndex = 0;
     this.currentOsrmIndex = 0;
-    this.proxyFailures = new Map();
+    this.routeCache = new Map(); // Cache for routes
+    this.coordinateCache = new Map(); // Cache for coordinates
   }
 
   loadCache() {
@@ -50,33 +54,54 @@ class GeocodingService {
       if (hasExpired) {
         this.saveCache();
       }
+
+      // Load route cache from localStorage
+      const routeCache = localStorage.getItem('route_cache');
+      if (routeCache) {
+        const parsedCache = JSON.parse(routeCache);
+        this.routeCache = new Map(parsedCache);
+      }
     } catch (error) {
-      console.error('Error loading geocoding cache:', error);
+      console.error('Error loading cache:', error);
       this.cache = {};
+      this.routeCache = new Map();
     }
   }
 
   saveCache() {
     try {
       localStorage.setItem(CACHE_KEY, JSON.stringify(this.cache));
+      
+      // Save route cache
+      const routeCacheArray = Array.from(this.routeCache.entries());
+      localStorage.setItem('route_cache', JSON.stringify(routeCacheArray));
     } catch (error) {
-      console.error('Error saving geocoding cache:', error);
+      console.error('Error saving cache:', error);
       if (error.name === 'QuotaExceededError') {
-        // If storage is full, clear old entries
-        const now = Date.now();
-        Object.keys(this.cache).forEach(key => {
-          if (now - this.cache[key].timestamp > CACHE_EXPIRY / 2) {
-            delete this.cache[key];
-          }
-        });
-        try {
-          localStorage.setItem(CACHE_KEY, JSON.stringify(this.cache));
-        } catch (e) {
-          console.error('Still cannot save cache after clearing old entries:', e);
-          this.cache = {}; // Reset cache if still can't save
-        }
+        // Clear old entries if storage is full
+        this.clearOldCache();
       }
     }
+  }
+
+  clearOldCache() {
+    // Clear old location cache
+    const now = Date.now();
+    Object.keys(this.cache).forEach(key => {
+      if (now - this.cache[key].timestamp > CACHE_EXPIRY / 2) {
+        delete this.cache[key];
+      }
+    });
+
+    // Clear old route cache
+    if (this.routeCache.size > ROUTE_CACHE_SIZE) {
+      const entries = Array.from(this.routeCache.entries());
+      entries.sort((a, b) => b[1].timestamp - a[1].timestamp);
+      const toKeep = entries.slice(0, ROUTE_CACHE_SIZE);
+      this.routeCache = new Map(toKeep);
+    }
+
+    this.saveCache();
   }
 
   async fetchWithRetry(url, options = {}, retries = 3) {
@@ -97,7 +122,6 @@ class GeocodingService {
 
         const response = await fetch(osrmUrl, {
           ...options,
-          mode: 'cors',
           signal: controller.signal,
           headers: {
             ...options.headers,
@@ -122,34 +146,29 @@ class GeocodingService {
     for (let i = 0; i < retries; i++) {
       const proxyUrl = PROXY_URLS[this.currentProxyIndex];
       
-      // Skip proxies that have failed recently
-      if (this.proxyFailures.has(proxyUrl)) {
-        const failureTime = this.proxyFailures.get(proxyUrl);
-        if (Date.now() - failureTime < 300000) { // 5 minutes cooldown
-          this.currentProxyIndex = (this.currentProxyIndex + 1) % PROXY_URLS.length;
-          continue;
-        }
-        this.proxyFailures.delete(proxyUrl);
-      }
-
       try {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT);
 
+        // Add timestamp to URL to prevent caching
+        const timestamp = Date.now();
+        const urlWithTimestamp = url.includes('?') ? 
+          `${url}&_t=${timestamp}` : 
+          `${url}?_t=${timestamp}`;
+
         // Special handling for different proxy formats
         const finalUrl = proxyUrl.includes('?') ? 
-          `${proxyUrl}${encodeURIComponent(url)}` : 
-          `${proxyUrl}${url}`;
+          `${proxyUrl}${encodeURIComponent(urlWithTimestamp)}` : 
+          `${proxyUrl}${urlWithTimestamp}`;
 
         const response = await fetch(finalUrl, {
           ...options,
           signal: controller.signal,
-          mode: 'cors',
           headers: {
             ...options.headers,
             'Accept': 'application/json',
             'User-Agent': 'Tracio App (https://tracio.app)',
-            'x-requested-with': 'XMLHttpRequest'
+            'Origin': window.location.origin
           }
         });
 
@@ -168,9 +187,6 @@ class GeocodingService {
       } catch (error) {
         console.error(`Attempt ${i + 1} failed with proxy ${proxyUrl}:`, error);
         
-        // Mark proxy as failed
-        this.proxyFailures.set(proxyUrl, Date.now());
-        
         // Try next proxy
         this.currentProxyIndex = (this.currentProxyIndex + 1) % PROXY_URLS.length;
         
@@ -181,11 +197,9 @@ class GeocodingService {
             error
           );
         
-        // Exponential backoff with jitter
+        // Add delay between retries
         if (i < retries - 1) {
-          const baseDelay = Math.min(1000 * Math.pow(2, i), 10000);
-          const jitter = Math.random() * 1000;
-          await new Promise(resolve => setTimeout(resolve, baseDelay + jitter));
+          await new Promise(resolve => setTimeout(resolve, 1000));
         }
       }
     }
@@ -200,79 +214,51 @@ class GeocodingService {
 
     const cacheKey = `search:${query.toLowerCase().trim()}`;
     
-    // Return cached result if valid
+    // Check coordinate cache first
+    if (this.coordinateCache.has(cacheKey)) {
+      return this.coordinateCache.get(cacheKey);
+    }
+    
+    // Then check localStorage cache
     if (this.cache[cacheKey] && Date.now() - this.cache[cacheKey].timestamp < CACHE_EXPIRY) {
       return this.cache[cacheKey].results;
     }
 
-    // Check if there's a pending request
-    if (this.pendingRequests.has(cacheKey)) {
-      return this.pendingRequests.get(cacheKey);
-    }
-
     try {
-      const promise = (async () => {
-        const data = await this.fetchWithRetry(
-          `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&countrycodes=vn&limit=5`,
-          {
-            headers: {
-              'Accept-Language': 'vi-VN,vi;q=0.9,en-US;q=0.8,en;q=0.7',
-              'User-Agent': 'Tracio App (https://tracio.app)'
-            }
+      const data = await this.fetchWithRetry(
+        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&countrycodes=vn&limit=5`,
+        {
+          headers: {
+            'Accept-Language': 'vi-VN,vi;q=0.9,en-US;q=0.8,en;q=0.7'
           }
-        );
-
-        if (!Array.isArray(data)) {
-          throw new GeocodingError('Invalid response format', 'format');
         }
+      );
 
-        const results = data.map(item => ({
-          display_name: item.display_name,
-          lat: parseFloat(item.lat),
-          lon: parseFloat(item.lon),
-          type: item.type,
-          importance: item.importance,
-          address: {
-            road: item.address?.road,
-            suburb: item.address?.suburb,
-            city: item.address?.city,
-            state: item.address?.state,
-            country: item.address?.country
-          }
-        }));
+      if (!Array.isArray(data)) {
+        throw new GeocodingError('Invalid response format', 'format');
+      }
 
-        // Cache the results
-        this.cache[cacheKey] = {
-          results,
-          timestamp: Date.now()
-        };
-        this.saveCache();
+      const results = data.map(item => ({
+        display_name: item.display_name,
+        lat: parseFloat(item.lat),
+        lon: parseFloat(item.lon),
+        type: item.type,
+        importance: item.importance,
+        address: item.address || {}
+      }));
 
-        return results;
-      })();
-
-      // Store the pending request
-      this.pendingRequests.set(cacheKey, promise);
-
-      const results = await promise;
-      
-      // Clean up pending request
-      this.pendingRequests.delete(cacheKey);
+      // Cache in memory and localStorage
+      this.coordinateCache.set(cacheKey, results);
+      this.cache[cacheKey] = {
+        results,
+        timestamp: Date.now()
+      };
+      this.saveCache();
 
       return results;
     } catch (error) {
-      this.pendingRequests.delete(cacheKey);
       console.error('Location search error:', error);
-      
-      if (error instanceof GeocodingError) {
-        throw error;
-      }
-      
-      throw new GeocodingError(
-        'Failed to search location',
-        'unknown',
-        error
-      );
+      throw error;
     }
   }
 
@@ -287,100 +273,62 @@ class GeocodingService {
     return location; // If already coordinates
   }
 
-  async calculateRoute(startCoords, endCoords) {
-    // Validate coordinates
-    if (!Array.isArray(startCoords) || startCoords.length !== 2 ||
-        !Array.isArray(endCoords) || endCoords.length !== 2 ||
-        !startCoords.every(coord => typeof coord === 'number') ||
-        !endCoords.every(coord => typeof coord === 'number')) {
-      throw new GeocodingError('Invalid coordinates format', 'validation');
+  async calculateRoute(startCoords, endCoords, options = {}) {
+    if (!startCoords || !endCoords) {
+      throw new GeocodingError('Invalid coordinates', 'validation');
     }
 
-    const cacheKey = `route:${startCoords.join(',')}-${endCoords.join(',')}`;
+    const [startLon, startLat] = Array.isArray(startCoords) ? startCoords : [startCoords.lng, startCoords.lat];
+    const [endLon, endLat] = Array.isArray(endCoords) ? endCoords : [endCoords.lng, endCoords.lat];
+
+    // Create cache key for the route
+    const cacheKey = `route:${startLon},${startLat}-${endLon},${endLat}`;
     
-    // Return cached result if valid
-    if (this.cache[cacheKey] && Date.now() - this.cache[cacheKey].timestamp < CACHE_EXPIRY) {
-      return this.cache[cacheKey].route;
+    // Check route cache
+    if (this.routeCache.has(cacheKey)) {
+      const cachedRoute = this.routeCache.get(cacheKey);
+      if (Date.now() - cachedRoute.timestamp < CACHE_EXPIRY) {
+        return cachedRoute.data;
+      }
     }
 
-    // Check if there's a pending request for this route
-    if (this.pendingRequests.has(cacheKey)) {
-      return this.pendingRequests.get(cacheKey);
-    }
+    // Construct the OSRM routing URL with alternatives
+    const baseUrl = OSRM_SERVERS[this.currentOsrmIndex];
+    const url = `${baseUrl}/route/v1/driving/${startLon},${startLat};${endLon},${endLat}`;
+    
+    // Add query parameters for alternatives and other options
+    const queryParams = new URLSearchParams({
+      alternatives: 'true',
+      steps: 'true',
+      annotations: 'true',
+      geometries: 'geojson',
+      overview: 'full'
+    });
 
     try {
-      const promise = (async () => {
-        // Try multiple routing services
-        for (let i = 0; i < OSRM_SERVERS.length; i++) {
-          try {
-            const baseUrl = OSRM_SERVERS[i];
-            const url = `${baseUrl}/routed-car/route/v1/driving/${startCoords.join(',')};${endCoords.join(',')}?overview=full&geometries=geojson&steps=true&annotations=true`;
-            
-            const data = await this.fetchWithRetry(url, {
-              headers: {
-                'Accept': 'application/json',
-                'User-Agent': 'Tracio App (https://tracio.app)'
-              }
-            });
-
-            if (!data || typeof data !== 'object') {
-              throw new GeocodingError('Invalid response format', 'format');
-            }
-
-            if (data.code !== 'Ok' || !data.routes || !data.routes[0]) {
-              throw new GeocodingError(
-                data.message || 'Route calculation failed',
-                'routing',
-                { code: data.code, message: data.message }
-              );
-            }
-
-            const route = data.routes[0];
-            
-            // Validate route data
-            if (!route.geometry || !route.geometry.coordinates || 
-                !Array.isArray(route.geometry.coordinates) || 
-                route.geometry.coordinates.length === 0) {
-              throw new GeocodingError('Invalid route geometry', 'format');
-            }
-
-            // Cache the result
-            this.cache[cacheKey] = {
-              route: data,
-              timestamp: Date.now()
-            };
-            this.saveCache();
-
-            return data;
-          } catch (error) {
-            console.warn(`Failed to fetch route from ${OSRM_SERVERS[i]}:`, error);
-            if (i === OSRM_SERVERS.length - 1) {
-              throw error; // Re-throw if all servers failed
-            }
-          }
-        }
-      })();
-
-      // Store the pending request
-      this.pendingRequests.set(cacheKey, promise);
-
-      const result = await promise;
+      const response = await this.fetchWithRetry(`${url}?${queryParams}`);
       
-      // Clean up pending request
-      this.pendingRequests.delete(cacheKey);
-
-      return result;
-    } catch (error) {
-      this.pendingRequests.delete(cacheKey);
-      console.error('Route calculation error:', error);
-      
-      if (error instanceof GeocodingError) {
-        throw error;
+      if (!response.routes || response.routes.length === 0) {
+        throw new GeocodingError('No route found', 'no_results');
       }
-      
+
+      // Cache the route
+      this.routeCache.set(cacheKey, {
+        data: response,
+        timestamp: Date.now()
+      });
+
+      // Clean up old routes if cache is too large
+      if (this.routeCache.size > ROUTE_CACHE_SIZE) {
+        this.clearOldCache();
+      }
+
+      return response;
+    } catch (error) {
+      console.error('Route calculation failed:', error);
       throw new GeocodingError(
         'Failed to calculate route',
-        'unknown',
+        error instanceof GeocodingError ? error.type : 'unknown',
         error
       );
     }

@@ -64,61 +64,141 @@ const RouteForm = ({ initialData, onSubmit, onCancel }) => {
     setError(null);
 
     try {
-      const suggestions = await geocodingService.searchLocations(query);
+      // Trực tiếp gọi Nominatim API
+      const nominatimUrl = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&countrycodes=vn&addressdetails=1&limit=5`;
       
+      const response = await fetch(nominatimUrl, {
+        headers: {
+          'Accept': 'application/json',
+          'User-Agent': 'Tracio App (https://tracio.app)'
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error('Network response was not ok');
+      }
+
+      const data = await response.json();
+      
+      // Format suggestions
+      const formattedSuggestions = data.map(item => {
+        const address = item.address;
+        const parts = [];
+        
+        // Build address parts in Vietnamese format
+        if (address.road) parts.push(address.road);
+        if (address.suburb) parts.push(address.suburb);
+        if (address.city_district) parts.push(address.city_district);
+        if (address.city) parts.push(address.city);
+        
+        return {
+          ...item,
+          display_name: parts.length > 0 ? parts.join(', ') : item.display_name,
+          address: address
+        };
+      });
+
       // Cache the results
-      suggestionsCache.current[query] = suggestions;
-      setSuggestions(suggestions);
+      suggestionsCache.current[query] = formattedSuggestions;
+      setSuggestions(formattedSuggestions);
     } catch (error) {
       console.error('Error fetching suggestions:', error);
-      setError('Unable to fetch location suggestions. Please try again later.');
+      setError('Không thể tìm thấy địa điểm. Vui lòng thử lại sau.');
       setSuggestions([]);
     } finally {
       setLoading(false);
     }
   };
 
-  // Debounced version of fetchSuggestions with longer delay
+  // Debounced version of fetchSuggestions with shorter delay
   const debouncedFetchSuggestions = useCallback(
     debounce((query, isStart) => {
-      if (query.length > 2) {
+      if (query.length >= 2) { // Reduced minimum length to 2 characters
         fetchSuggestions(query, isStart);
       } else {
         isStart ? setStartSuggestions([]) : setEndSuggestions([]);
       }
-    }, 1000), // Increased debounce delay to 1 second
+    }, 300), // Reduced debounce delay to 300ms
     []
   );
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: type === 'checkbox' ? checked : value,
-    }));
-
-    // Fetch suggestions when location input changes
+    
     if (name === 'startLocation') {
+      setFormData(prev => ({
+        ...prev,
+        startLocation: value,
+        startCoords: null // Reset coordinates when location changes
+      }));
       debouncedFetchSuggestions(value, true);
       setShowStartSuggestions(true);
     } else if (name === 'endLocation') {
+      setFormData(prev => ({
+        ...prev,
+        endLocation: value,
+        endCoords: null // Reset coordinates when location changes
+      }));
       debouncedFetchSuggestions(value, false);
       setShowEndSuggestions(true);
+    } else {
+      setFormData(prev => ({
+        ...prev,
+        [name]: type === 'checkbox' ? checked : value,
+      }));
+    }
+  };
+
+  // Update input focus handlers
+  const handleInputFocus = (e) => {
+    const { name, value } = e.target;
+    if (name === 'startLocation') {
+      setShowStartSuggestions(true);
+      // Show existing suggestions if there are any
+      if (value.trim()) {
+        debouncedFetchSuggestions(value, true);
+      }
+    } else if (name === 'endLocation') {
+      setShowEndSuggestions(true);
+      // Show existing suggestions if there are any
+      if (value.trim()) {
+        debouncedFetchSuggestions(value, false);
+      }
     }
   };
 
   const handleSuggestionClick = (suggestion, isStart) => {
-    const location = suggestion.display_name;
+    const address = suggestion.address;
+    const parts = [];
+    
+    // Build address parts in Vietnamese format
+    if (address.road) parts.push(address.road);
+    if (address.suburb) parts.push(address.suburb);
+    if (address.city_district) parts.push(address.city_district);
+    if (address.city) parts.push(address.city);
+    
+    const location = parts.length > 0 ? parts.join(', ') : suggestion.display_name;
     const coords = {
-      lat: suggestion.lat,
-      lng: suggestion.lon
+      lat: parseFloat(suggestion.lat),
+      lng: parseFloat(suggestion.lon)
     };
 
-    setFormData(prev => ({
-      ...prev,
-      [isStart ? 'startLocation' : 'endLocation']: location,
-      [isStart ? 'startCoords' : 'endCoords']: coords
-    }));
+    // Update form data with new location and coordinates
+    setFormData(prev => {
+      const newData = {
+        ...prev,
+        [isStart ? 'startLocation' : 'endLocation']: location,
+        [isStart ? 'startCoords' : 'endCoords']: coords
+      };
+
+      // Reset route info if either location changes
+      if (isStart || !isStart) {
+        newData.distance = '';
+        newData.estimatedTime = '';
+      }
+
+      return newData;
+    });
 
     if (isStart) {
       setShowStartSuggestions(false);
@@ -231,15 +311,15 @@ const RouteForm = ({ initialData, onSubmit, onCancel }) => {
     <form onSubmit={handleSubmit} className="space-y-6">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="form-group relative" ref={startInputRef}>
-          <label className="block text-white mb-1">Start Location</label>
+          <label className="block text-white mb-1">Điểm bắt đầu</label>
           <div className="relative flex">
             <input
               type="text"
               name="startLocation"
               value={formData.startLocation}
               onChange={handleChange}
-              onFocus={() => setShowStartSuggestions(true)}
-              placeholder="Enter start location"
+              onFocus={handleInputFocus}
+              placeholder="Nhập địa điểm bắt đầu"
               className="w-full p-2 bg-white border border-zinc-700 rounded-l text-black"
               required
             />
@@ -269,7 +349,7 @@ const RouteForm = ({ initialData, onSubmit, onCancel }) => {
               {isLoadingStart ? (
                 <div className="p-2 text-gray-500 flex items-center justify-center">
                   <div className="animate-spin rounded-full h-5 w-5 border-2 border-gray-500 border-t-transparent"></div>
-                  <span className="ml-2">Searching...</span>
+                  <span className="ml-2">Đang tìm kiếm...</span>
                 </div>
               ) : error ? (
                 <div className="p-2 text-red-500">{error}</div>
@@ -283,22 +363,24 @@ const RouteForm = ({ initialData, onSubmit, onCancel }) => {
                     {suggestion.display_name}
                   </div>
                 ))
-              ) : formData.startLocation.length > 2 ? (
-                <div className="p-2 text-gray-500">No suggestions found</div>
-              ) : null}
+              ) : formData.startLocation ? (
+                <div className="p-2 text-gray-500">Không tìm thấy địa điểm</div>
+              ) : (
+                <div className="p-2 text-gray-500">Nhập địa điểm bạn muốn tìm</div>
+              )}
             </div>
           )}
         </div>
 
         <div className="form-group relative" ref={endInputRef}>
-          <label className="block text-white mb-1">End Location</label>
+          <label className="block text-white mb-1">Điểm kết thúc</label>
           <input
             type="text"
             name="endLocation"
             value={formData.endLocation}
             onChange={handleChange}
-            onFocus={() => setShowEndSuggestions(true)}
-            placeholder="Enter end location"
+            onFocus={handleInputFocus}
+            placeholder="Nhập địa điểm kết thúc"
             className="w-full p-2 bg-white border border-zinc-700 rounded text-black"
             required
           />
@@ -307,7 +389,7 @@ const RouteForm = ({ initialData, onSubmit, onCancel }) => {
               {isLoadingEnd ? (
                 <div className="p-2 text-gray-500 flex items-center justify-center">
                   <div className="animate-spin rounded-full h-5 w-5 border-2 border-gray-500 border-t-transparent"></div>
-                  <span className="ml-2">Searching...</span>
+                  <span className="ml-2">Đang tìm kiếm...</span>
                 </div>
               ) : error ? (
                 <div className="p-2 text-red-500">{error}</div>
@@ -321,9 +403,11 @@ const RouteForm = ({ initialData, onSubmit, onCancel }) => {
                     {suggestion.display_name}
                   </div>
                 ))
-              ) : formData.endLocation.length > 2 ? (
-                <div className="p-2 text-gray-500">No suggestions found</div>
-              ) : null}
+              ) : formData.endLocation ? (
+                <div className="p-2 text-gray-500">Không tìm thấy địa điểm</div>
+              ) : (
+                <div className="p-2 text-gray-500">Nhập địa điểm bạn muốn tìm</div>
+              )}
             </div>
           )}
         </div>
@@ -333,8 +417,8 @@ const RouteForm = ({ initialData, onSubmit, onCancel }) => {
       <div className="form-group">
         <label className="block text-white mb-1">Map</label>
         <RouteMap
-          startLocation={formData.startLocation}
-          endLocation={formData.endLocation}
+          startLocation={formData.startCoords || formData.startLocation}
+          endLocation={formData.endCoords || formData.endLocation}
           checkpoints={formData.checkpoints}
           onRouteCalculated={handleRouteCalculated}
           onCheckpointAdd={handleCheckpointAdd}
