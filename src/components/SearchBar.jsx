@@ -1,8 +1,8 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import styled from "styled-components";
 import logo from "../assets/logo.jpg";
 import { FaMapLocationDot } from "react-icons/fa6";
-import { FaSearch, FaShoppingCart, FaUserCircle } from "react-icons/fa";
+import { FaSearch, FaShoppingCart, FaUserCircle, FaSignOutAlt } from "react-icons/fa";
 import { useNavigate } from "react-router-dom";
 
 function SearchBar() {
@@ -11,6 +11,12 @@ function SearchBar() {
   const [searchType, setSearchType] = useState("products");
   const [showDropdown, setShowDropdown] = useState(false);
   const [searchResults, setSearchResults] = useState([]);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    setIsLoggedIn(!!token);
+  }, []);
 
   const handleSearch = async () => {
     if (!searchQuery.trim()) return;
@@ -41,8 +47,35 @@ function SearchBar() {
     }
   };
 
-  const handleCartClick = () => navigate("/cart");
-  const handleManageClick = () => navigate("/route");
+  const handleCartClick = () => {
+    if (!isLoggedIn) {
+      navigate('/login');
+      return;
+    }
+    navigate("/cart");
+  };
+
+  const handleManageClick = () => {
+    if (!isLoggedIn) {
+      navigate('/login');
+      return;
+    }
+    navigate("/route");
+  };
+
+  const handleUserClick = () => {
+    if (!isLoggedIn) {
+      navigate('/login');
+      return;
+    }
+    // Handle logged in user actions (e.g., show profile menu)
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem('token');
+    setIsLoggedIn(false);
+    navigate('/');
+  };
 
   return (
     <Container>
@@ -66,16 +99,28 @@ function SearchBar() {
       <IconContainer>
         <IconWrapper onClick={handleCartClick}>
           <FaShoppingCart />
-          
+          <IconTooltip>Cart</IconTooltip>
         </IconWrapper>
+
         <IconWrapper onClick={handleManageClick}>
           <FaMapLocationDot />
-          
+          <IconTooltip>Manage Route</IconTooltip>
         </IconWrapper>
-        <IconWrapper>
-          <FaUserCircle />
-          
-        </IconWrapper>
+
+        {isLoggedIn ? (
+          <>
+            <IconWrapper onClick={handleUserClick}>
+              <FaUserCircle />
+              <IconTooltip>Profile</IconTooltip>
+            </IconWrapper>
+            <IconWrapper onClick={handleLogout}>
+              <FaSignOutAlt />
+              <IconTooltip>Logout</IconTooltip>
+            </IconWrapper>
+          </>
+        ) : (
+          <LoginText onClick={() => navigate('/login')}>Login</LoginText>
+        )}
       </IconContainer>
 
       {showDropdown && searchResults.length > 0 && (
@@ -347,6 +392,20 @@ const SearchResultPrice = styled.div`
   color: #e53e3e;
   font-weight: 600;
   font-size: 14px;
+`;
+
+const LoginText = styled.div`
+  cursor: pointer;
+  font-weight: 500;
+  color: #333;
+  padding: 8px 16px;
+  border-radius: 20px;
+  transition: all 0.2s ease;
+
+  &:hover {
+    background-color: #f0f0f0;
+    transform: translateY(-2px);
+  }
 `;
 
 export default SearchBar;

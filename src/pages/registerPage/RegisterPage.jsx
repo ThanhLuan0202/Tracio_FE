@@ -6,8 +6,9 @@ import { useNavigate } from "react-router-dom";
 const RegisterPage = () => {
   const navigate = useNavigate();
   const [formData, setFormData] = useState({
-    username: "",
+    fullName: "",
     email: "",
+    phoneNumber: "",
     password: "",
     confirmPassword: "",
   });
@@ -17,13 +18,18 @@ const RegisterPage = () => {
 
   const validateForm = () => {
     const newErrors = {};
-    if (!formData.username) {
-      newErrors.username = "Username is required";
+    if (!formData.fullName) {
+      newErrors.fullName = "Username is required";
     }
     if (!formData.email) {
       newErrors.email = "Email is required";
     } else if (!/\S+@\S+\.\S+/.test(formData.email)) {
       newErrors.email = "Email is invalid";
+    }
+    if (!formData.phoneNumber) {
+      newErrors.phoneNumber = "Phone number is required";
+    } else if (!/^[0-9]{10}$/.test(formData.phoneNumber)) {
+      newErrors.phoneNumber = "Phone number must be 10 digits";
     }
     if (!formData.password) {
       newErrors.password = "Password is required";
@@ -66,9 +72,10 @@ const RegisterPage = () => {
     setErrorMessage("");
 
     try {
-      const response = await axios.post("https://67dda021e00db03c406c656d.mockapi.io/account", {
-        username: formData.username,
+      const response = await axios.post("https://traciover1-eccybrdxbmh8cveb.japaneast-01.azurewebsites.net/api/Authen/Register", {
+        username: formData.fullName,
         email: formData.email,
+        phoneNumber: formData.phoneNumber,
         password: formData.password,
       });
       
@@ -94,16 +101,16 @@ const RegisterPage = () => {
       <form onSubmit={handleSubmit}>
         <h3>Register Here</h3>
 
-        <label htmlFor="username">Username</label>
+        <label htmlFor="fullName">UserName</label>
         <input
           type="text"
           placeholder="Username"
-          id="username"
-          value={formData.username}
+          id="fullName"
+          value={formData.fullName}
           onChange={handleChange}
-          className={errors.username ? "error" : ""}
+          className={errors.fullName ? "error" : ""}
         />
-        {errors.username && <span className="error-message">{errors.username}</span>}
+        {errors.fullName && <span className="error-message">{errors.fullName}</span>}
 
         <label htmlFor="email">Email</label>
         <input
@@ -115,6 +122,17 @@ const RegisterPage = () => {
           className={errors.email ? "error" : ""}
         />
         {errors.email && <span className="error-message">{errors.email}</span>}
+
+        <label htmlFor="phoneNumber">Phone Number</label>
+        <input
+          type="tel"
+          placeholder="Phone Number"
+          id="phoneNumber"
+          value={formData.phoneNumber}
+          onChange={handleChange}
+          className={errors.phoneNumber ? "error" : ""}
+        />
+        {errors.phoneNumber && <span className="error-message">{errors.phoneNumber}</span>}
 
         <label htmlFor="password">Password</label>
         <input

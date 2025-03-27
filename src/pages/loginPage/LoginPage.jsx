@@ -51,7 +51,7 @@ const LoginPage = () => {
     setErrorMessage("");
 
     try {
-      const response = await axios.post("https://localhost:7106/api/Authen/Login", {
+      const response = await axios.post("https://traciover1-eccybrdxbmh8cveb.japaneast-01.azurewebsites.net/api/Authen/Login", {
         email: formData.email,
         password: formData.password
       });
