@@ -4,9 +4,12 @@
   "private": true,
   "dependencies": {
     "@react-google-maps/api": "^2.20.6",
+    "@types/ol": "^6.5.3",
     "axios": "^1.8.2",
     "cra-template": "1.2.0",
     "date-fns": "^4.1.0",
+    "lodash": "^4.17.21",
+    "ol": "^10.4.0",
     "primeicons": "^7.0.0",
     "primereact": "^10.9.2",
     "react": "^19.0.0",

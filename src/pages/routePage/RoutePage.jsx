@@ -5,30 +5,39 @@ import SearchBar from '../../components/SearchBar';
 import NavBar from '../../components/NavBar';
 import Footer from '../../components/Footer';
 import Breadcrumbs from '../../components/Breadcumbs';
-import GoogleMapsProvider from '../../components/GoogleMapsProvider';
+
+const ROUTES_STORAGE_KEY = 'tracio_routes';
 
 const RoutePage = () => {
-  const [routes, setRoutes] = useState([]);
+  const [routes, setRoutes] = useState(() => {
+    // Initialize state from localStorage
+    try {
+      const savedRoutes = localStorage.getItem(ROUTES_STORAGE_KEY);
+      if (savedRoutes) {
+        const parsedRoutes = JSON.parse(savedRoutes);
+        return parsedRoutes.map(route => ({
+          ...route,
+          createdAt: new Date(route.createdAt)
+        }));
+      }
+    } catch (error) {
+      console.error('Error loading saved routes:', error);
+    }
+    return [];
+  });
+
   const [isCreating, setIsCreating] = useState(false);
   const [editingRoute, setEditingRoute] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
 
-  // Fetch routes when component mounts
+  // Save routes to localStorage whenever they change
   useEffect(() => {
-    const fetchRoutes = async () => {
-      try {
-        // Giả lập fetch data từ API
-        const response = await new Promise(resolve => 
-          setTimeout(() => resolve([]), 500)
-        );
-        setRoutes(response);
-      } catch (error) {
-        console.error('Error fetching routes:', error);
-      }
-    };
-
-    fetchRoutes();
-  }, []);
+    try {
+      localStorage.setItem(ROUTES_STORAGE_KEY, JSON.stringify(routes));
+    } catch (error) {
+      console.error('Error saving routes:', error);
+    }
+  }, [routes]);
 
   // Hàm tạo route mới
   const handleCreateRoute = (route) => {
@@ -37,82 +46,84 @@ const RoutePage = () => {
       id: Date.now().toString(),
       createdAt: new Date(),
     };
-    setRoutes([newRoute, ...routes]);
+    setRoutes(prevRoutes => [newRoute, ...prevRoutes]);
     setIsCreating(false);
   };
 
   // Hàm cập nhật route
   const handleUpdateRoute = (updatedRoute) => {
-    setRoutes(routes.map(route => route.id === updatedRoute.id ? updatedRoute : route));
+    setRoutes(prevRoutes => 
+      prevRoutes.map(route => 
+        route.id === updatedRoute.id ? updatedRoute : route
+      )
+    );
     setEditingRoute(null);
   };
 
   // Hàm xóa route
   const handleDeleteRoute = (id) => {
-    setRoutes(routes.filter(route => route.id !== id));
+    setRoutes(prevRoutes => prevRoutes.filter(route => route.id !== id));
   };
 
   return (
-    <GoogleMapsProvider>
-      <div>
-        <SearchBar />
-        <Breadcrumbs />
-        <div className="min-h-screen bg-white text-black p-4 md:p-8">
-          <div className="max-w-4xl mx-auto">
-            <header className="mb-8">
-              <h1 className="text-3xl font-bold mb-4">Quản lý lộ trình</h1>
-              
-              {!isCreating && !editingRoute && (
-                <button 
-                  className="flex items-center gap-2 bg-black text-white px-4 py-2 rounded hover:bg-gray-200" 
-                  onClick={() => setIsCreating(true)}
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <circle cx="12" cy="12" r="10"></circle>
-                    <line x1="12" y1="8" x2="12" y2="16"></line>
-                    <line x1="8" y1="12" x2="16" y2="12"></line>
-                  </svg>
-                  Tạo lộ trình mới
-                </button>
-              )}
-            </header>
+    <div>
+      <SearchBar />
+      <Breadcrumbs />
+      <div className="min-h-screen bg-white text-black p-4 md:p-8">
+        <div className="max-w-4xl mx-auto">
+          <header className="mb-8">
+            <h1 className="text-3xl font-bold mb-4">Quản lý lộ trình</h1>
+            
+            {!isCreating && !editingRoute && (
+              <button 
+                className="flex items-center gap-2 bg-black text-white px-4 py-2 rounded hover:bg-gray-200" 
+                onClick={() => setIsCreating(true)}
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="10"></circle>
+                  <line x1="12" y1="8" x2="12" y2="16"></line>
+                  <line x1="8" y1="12" x2="16" y2="12"></line>
+                </svg>
+                Tạo lộ trình mới
+              </button>
+            )}
+          </header>
 
-            <main>
-              {isCreating && (
-                <div className="p-4 mb-8 bg-zinc-800 border border-zinc-800 rounded-md">
-                  <h2 className="text-xl font-semibold mb-4 text-white">Tạo lộ trình mới</h2>
-                  <RouteForm
-                    onSubmit={handleCreateRoute}
-                    onCancel={() => setIsCreating(false)}
-                  />
-                </div>
-              )}
-
-              {editingRoute && (
-                <div className="p-4 mb-8 bg-zinc-900 border border-zinc-800 rounded-md">
-                  <h2 className="text-xl font-semibold mb-4 text-white">Chỉnh sửa lộ trình</h2>
-                  <RouteForm
-                    initialData={editingRoute}
-                    onSubmit={handleUpdateRoute}
-                    onCancel={() => setEditingRoute(null)}
-                  />
-                </div>
-              )}
-
-              <div className="mt-8">
-                <h2 className="text-xl font-semibold mb-4 text-white">Lịch sử lộ trình</h2>
-                <RouteList
-                  routes={routes}
-                  onEdit={setEditingRoute}
-                  onDelete={handleDeleteRoute}
+          <main>
+            {isCreating && (
+              <div className="p-4 mb-8 bg-zinc-800 border border-zinc-800 rounded-md">
+                <h2 className="text-xl font-semibold mb-4 text-white">Tạo lộ trình mới</h2>
+                <RouteForm
+                  onSubmit={handleCreateRoute}
+                  onCancel={() => setIsCreating(false)}
                 />
               </div>
-            </main>
-          </div>
+            )}
+
+            {editingRoute && (
+              <div className="p-4 mb-8 bg-zinc-900 border border-zinc-800 rounded-md">
+                <h2 className="text-xl font-semibold mb-4 text-white">Chỉnh sửa lộ trình</h2>
+                <RouteForm
+                  initialData={editingRoute}
+                  onSubmit={handleUpdateRoute}
+                  onCancel={() => setEditingRoute(null)}
+                />
+              </div>
+            )}
+
+            <div className="mt-8">
+              <h2 className="text-xl font-semibold mb-4 text-white">Lịch sử lộ trình</h2>
+              <RouteList
+                routes={routes}
+                onEdit={setEditingRoute}
+                onDelete={handleDeleteRoute}
+              />
+            </div>
+          </main>
         </div>
-        <Footer />
       </div>
-    </GoogleMapsProvider>
+      <Footer />
+    </div>
   );
 };
 

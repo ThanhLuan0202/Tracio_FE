@@ -164,20 +164,23 @@ const RouteList = ({ routes, onEdit, onDelete }) => {
               </div>
 
               <div className="bg-zinc-800 p-4 rounded">
-                <div className="text-gray-400 mb-2">Điểm dừng:</div>
+                <div className="text-gray-400 mb-2">Checkpoints:</div>
                 {selectedRoute.checkpoints && selectedRoute.checkpoints.length > 0 ? (
                   <ul className="space-y-2">
                     {selectedRoute.checkpoints.map((checkpoint, index) => (
-                      <li key={index} className="flex items-center text-white">
-                        <span className="w-8 h-8 flex items-center justify-center bg-purple-600 rounded-full mr-3">
+                      <li key={index} className="flex items-start text-white">
+                        <span className="w-8 h-8 flex-shrink-0 flex items-center justify-center bg-purple-600 rounded-full mr-3">
                           {index + 1}
                         </span>
-                        {checkpoint.name || `Điểm dừng ${index + 1}`}
+                        <div>
+                          <div className="font-medium">{checkpoint.name}</div>
+                          <div className="text-gray-400 text-sm">{checkpoint.location}</div>
+                        </div>
                       </li>
                     ))}
                   </ul>
                 ) : (
-                  <p className="text-gray-400">Chưa có điểm dừng nào được thêm</p>
+                  <p className="text-gray-400">No checkpoints added</p>
                 )}
               </div>
             </div>
