@@ -1,16 +1,34 @@
 const CACHE_KEY = 'geocoding_cache';
 const CACHE_EXPIRY = 7 * 24 * 60 * 60 * 1000; // 7 days in milliseconds
+const REQUEST_TIMEOUT = 20000; // 20 seconds
 const PROXY_URLS = [
-  'https://api.allorigins.win/raw?url=',
-  'https://corsproxy.io/?',
-  'https://cors-anywhere.herokuapp.com/'
+  'https://corsproxy.org/?',
+  'https://cors.sh/?',
+  'https://proxy.cors.sh/',
+  'https://api.allorigins.win/raw?url='
 ];
+
+const OSRM_SERVERS = [
+  'https://routing.openstreetmap.de',
+  'https://router.project-osrm.org'
+];
+
+class GeocodingError extends Error {
+  constructor(message, type, originalError = null) {
+    super(message);
+    this.name = 'GeocodingError';
+    this.type = type;
+    this.originalError = originalError;
+  }
+}
 
 class GeocodingService {
   constructor() {
     this.loadCache();
     this.pendingRequests = new Map();
     this.currentProxyIndex = 0;
+    this.currentOsrmIndex = 0;
+    this.proxyFailures = new Map();
   }
 
   loadCache() {
@@ -64,26 +82,110 @@ class GeocodingService {
   async fetchWithRetry(url, options = {}, retries = 3) {
     let lastError;
     
-    for (let i = 0; i < retries; i++) {
+    // Try direct request first for OSRM
+    if (url.includes('router.project-osrm.org') || url.includes('routing.openstreetmap.de')) {
       try {
-        const proxyUrl = PROXY_URLS[this.currentProxyIndex];
-        const response = await fetch(proxyUrl + encodeURIComponent(url), options);
+        const baseUrl = url.includes('router.project-osrm.org') ? 
+          OSRM_SERVERS[this.currentOsrmIndex] : 
+          url.split('/')[0] + '//' + url.split('/')[2];
+        
+        const path = '/' + url.split('/').slice(3).join('/');
+        const osrmUrl = baseUrl + path;
+        
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT);
+
+        const response = await fetch(osrmUrl, {
+          ...options,
+          mode: 'cors',
+          signal: controller.signal,
+          headers: {
+            ...options.headers,
+            'Accept': 'application/json',
+            'User-Agent': 'Tracio App (https://tracio.app)'
+          }
+        });
+
+        clearTimeout(timeoutId);
+        
+        if (response.ok) {
+          const data = await response.json();
+          return data;
+        }
+      } catch (error) {
+        console.warn('Direct OSRM request failed:', error);
+        this.currentOsrmIndex = (this.currentOsrmIndex + 1) % OSRM_SERVERS.length;
+      }
+    }
+    
+    // If direct request fails or for other services, try with proxies
+    for (let i = 0; i < retries; i++) {
+      const proxyUrl = PROXY_URLS[this.currentProxyIndex];
+      
+      // Skip proxies that have failed recently
+      if (this.proxyFailures.has(proxyUrl)) {
+        const failureTime = this.proxyFailures.get(proxyUrl);
+        if (Date.now() - failureTime < 300000) { // 5 minutes cooldown
+          this.currentProxyIndex = (this.currentProxyIndex + 1) % PROXY_URLS.length;
+          continue;
+        }
+        this.proxyFailures.delete(proxyUrl);
+      }
+
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT);
+
+        // Special handling for different proxy formats
+        const finalUrl = proxyUrl.includes('?') ? 
+          `${proxyUrl}${encodeURIComponent(url)}` : 
+          `${proxyUrl}${url}`;
+
+        const response = await fetch(finalUrl, {
+          ...options,
+          signal: controller.signal,
+          mode: 'cors',
+          headers: {
+            ...options.headers,
+            'Accept': 'application/json',
+            'User-Agent': 'Tracio App (https://tracio.app)',
+            'x-requested-with': 'XMLHttpRequest'
+          }
+        });
+
+        clearTimeout(timeoutId);
         
         if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
+          throw new GeocodingError(
+            `HTTP error! status: ${response.status}`,
+            'http',
+            { status: response.status }
+          );
         }
         
-        return await response.json();
+        const data = await response.json();
+        return data;
       } catch (error) {
-        console.error(`Attempt ${i + 1} failed:`, error);
-        lastError = error;
+        console.error(`Attempt ${i + 1} failed with proxy ${proxyUrl}:`, error);
+        
+        // Mark proxy as failed
+        this.proxyFailures.set(proxyUrl, Date.now());
         
         // Try next proxy
         this.currentProxyIndex = (this.currentProxyIndex + 1) % PROXY_URLS.length;
         
-        // Wait before retry
+        lastError = error instanceof GeocodingError ? error :
+          new GeocodingError(
+            'Network request failed',
+            error.name === 'AbortError' ? 'timeout' : 'network',
+            error
+          );
+        
+        // Exponential backoff with jitter
         if (i < retries - 1) {
-          await new Promise(resolve => setTimeout(resolve, 1000 * (i + 1)));
+          const baseDelay = Math.min(1000 * Math.pow(2, i), 10000);
+          const jitter = Math.random() * 1000;
+          await new Promise(resolve => setTimeout(resolve, baseDelay + jitter));
         }
       }
     }
@@ -92,6 +194,10 @@ class GeocodingService {
   }
 
   async searchLocations(query) {
+    if (!query || typeof query !== 'string') {
+      throw new GeocodingError('Invalid search query', 'validation');
+    }
+
     const cacheKey = `search:${query.toLowerCase().trim()}`;
     
     // Return cached result if valid
@@ -110,11 +216,15 @@ class GeocodingService {
           `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&countrycodes=vn&limit=5`,
           {
             headers: {
-              'Accept-Language': 'vi-VN,vi',
-              'User-Agent': 'Tracio App'
+              'Accept-Language': 'vi-VN,vi;q=0.9,en-US;q=0.8,en;q=0.7',
+              'User-Agent': 'Tracio App (https://tracio.app)'
             }
           }
         );
+
+        if (!Array.isArray(data)) {
+          throw new GeocodingError('Invalid response format', 'format');
+        }
 
         const results = data.map(item => ({
           display_name: item.display_name,
@@ -153,7 +263,16 @@ class GeocodingService {
     } catch (error) {
       this.pendingRequests.delete(cacheKey);
       console.error('Location search error:', error);
-      throw error;
+      
+      if (error instanceof GeocodingError) {
+        throw error;
+      }
+      
+      throw new GeocodingError(
+        'Failed to search location',
+        'unknown',
+        error
+      );
     }
   }
 
@@ -169,6 +288,14 @@ class GeocodingService {
   }
 
   async calculateRoute(startCoords, endCoords) {
+    // Validate coordinates
+    if (!Array.isArray(startCoords) || startCoords.length !== 2 ||
+        !Array.isArray(endCoords) || endCoords.length !== 2 ||
+        !startCoords.every(coord => typeof coord === 'number') ||
+        !endCoords.every(coord => typeof coord === 'number')) {
+      throw new GeocodingError('Invalid coordinates format', 'validation');
+    }
+
     const cacheKey = `route:${startCoords.join(',')}-${endCoords.join(',')}`;
     
     // Return cached result if valid
@@ -183,22 +310,55 @@ class GeocodingService {
 
     try {
       const promise = (async () => {
-        const data = await this.fetchWithRetry(
-          `https://router.project-osrm.org/route/v1/driving/${startCoords.join(',')};${endCoords.join(',')}?overview=full&geometries=geojson`
-        );
+        // Try multiple routing services
+        for (let i = 0; i < OSRM_SERVERS.length; i++) {
+          try {
+            const baseUrl = OSRM_SERVERS[i];
+            const url = `${baseUrl}/routed-car/route/v1/driving/${startCoords.join(',')};${endCoords.join(',')}?overview=full&geometries=geojson&steps=true&annotations=true`;
+            
+            const data = await this.fetchWithRetry(url, {
+              headers: {
+                'Accept': 'application/json',
+                'User-Agent': 'Tracio App (https://tracio.app)'
+              }
+            });
 
-        if (data.code !== 'Ok') {
-          throw new Error('Could not calculate route');
+            if (!data || typeof data !== 'object') {
+              throw new GeocodingError('Invalid response format', 'format');
+            }
+
+            if (data.code !== 'Ok' || !data.routes || !data.routes[0]) {
+              throw new GeocodingError(
+                data.message || 'Route calculation failed',
+                'routing',
+                { code: data.code, message: data.message }
+              );
+            }
+
+            const route = data.routes[0];
+            
+            // Validate route data
+            if (!route.geometry || !route.geometry.coordinates || 
+                !Array.isArray(route.geometry.coordinates) || 
+                route.geometry.coordinates.length === 0) {
+              throw new GeocodingError('Invalid route geometry', 'format');
+            }
+
+            // Cache the result
+            this.cache[cacheKey] = {
+              route: data,
+              timestamp: Date.now()
+            };
+            this.saveCache();
+
+            return data;
+          } catch (error) {
+            console.warn(`Failed to fetch route from ${OSRM_SERVERS[i]}:`, error);
+            if (i === OSRM_SERVERS.length - 1) {
+              throw error; // Re-throw if all servers failed
+            }
+          }
         }
-
-        // Cache the result
-        this.cache[cacheKey] = {
-          route: data,
-          timestamp: Date.now()
-        };
-        this.saveCache();
-
-        return data;
       })();
 
       // Store the pending request
@@ -213,7 +373,16 @@ class GeocodingService {
     } catch (error) {
       this.pendingRequests.delete(cacheKey);
       console.error('Route calculation error:', error);
-      throw error;
+      
+      if (error instanceof GeocodingError) {
+        throw error;
+      }
+      
+      throw new GeocodingError(
+        'Failed to calculate route',
+        'unknown',
+        error
+      );
     }
   }
 }

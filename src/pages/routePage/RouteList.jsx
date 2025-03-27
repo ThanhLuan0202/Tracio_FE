@@ -54,6 +54,11 @@ const RouteList = ({ routes, onEdit, onDelete }) => {
                   <div>
                     <div className="font-semibold text-black">{route.startLocation}</div>
                     <div className="text-gray-400 text-sm">đến {route.endLocation}</div>
+                    {route.description && (
+                      <div className="text-gray-500 text-sm mt-1 line-clamp-2">
+                        {route.description}
+                      </div>
+                    )}
                   </div>
                 </td>
                 <td className="p-4 text-black">{route.distance}</td>
@@ -162,6 +167,13 @@ const RouteList = ({ routes, onEdit, onDelete }) => {
                   <div className="text-white font-medium">{selectedRoute.estimatedTime}</div>
                 </div>
               </div>
+
+              {selectedRoute.description && (
+                <div className="bg-zinc-800 p-4 rounded">
+                  <div className="text-gray-400 mb-2">Mô tả:</div>
+                  <div className="text-white whitespace-pre-wrap">{selectedRoute.description}</div>
+                </div>
+              )}
 
               <div className="bg-zinc-800 p-4 rounded">
                 <div className="text-gray-400 mb-2">Checkpoints:</div>
